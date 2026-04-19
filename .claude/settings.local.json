@@ -23,7 +23,11 @@
       "Bash(sips -g pixelWidth -g pixelHeight /Users/billchien/Desktop/000.png)",
       "Bash(brew install *)",
       "Bash(/opt/homebrew/bin/brew install *)",
-      "Bash(/opt/homebrew/bin/gh auth *)"
+      "Bash(/opt/homebrew/bin/gh auth *)",
+      "Bash(/opt/homebrew/bin/gh repo *)",
+      "Skill(update-config)",
+      "Skill(update-config:*)",
+      "Bash(bash -c 'cd \"/Users/billchien/Documents/PTO Tracker\" && git add -A && git diff --cached --quiet || git commit -m \"auto-deploy: update app\" && /opt/homebrew/bin/gh repo view --json name -q .name')"
     ]
   }
 }
