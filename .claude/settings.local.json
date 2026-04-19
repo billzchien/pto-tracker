@@ -1,0 +1,29 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm create:*)",
+      "Bash(npm install:*)",
+      "Bash(npx vite:*)",
+      "Bash(lsof -ti:5173)",
+      "Bash(xargs kill:*)",
+      "mcp__Claude_Preview__preview_start",
+      "Bash(python3 -c \"import sys,json; data=json.load\\(sys.stdin\\); [print\\(x['text'][:3000]\\) for x in data if x['type']=='text']\")",
+      "Bash(npm run:*)",
+      "Bash(launchctl load:*)",
+      "Bash(launchctl unload:*)",
+      "Bash(kill 84412)",
+      "mcp__bfb91291-aa2f-4e19-bd89-6ee9e96560ee__get_design_context",
+      "Bash(lsof -ti:5173,5174,5175)",
+      "Bash(pkill -9 -f \"electron\")",
+      "Bash(lsof -i:5173)",
+      "Bash(qlmanage -t -s 1024 -o /tmp/ /Users/billchien/Desktop/OOO.svg)",
+      "Bash(file /tmp/OOO*)",
+      "Bash(iconutil -c icns /tmp/OOO.iconset -o /tmp/OOO.icns)",
+      "Read(//tmp/**)",
+      "Bash(sips -g pixelWidth -g pixelHeight /Users/billchien/Desktop/000.png)",
+      "Bash(brew install *)",
+      "Bash(/opt/homebrew/bin/brew install *)",
+      "Bash(/opt/homebrew/bin/gh auth *)"
+    ]
+  }
+}

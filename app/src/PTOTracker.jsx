@@ -1,0 +1,1845 @@
+import { useState, useEffect, useLayoutEffect, useCallback, useMemo, useRef } from "react";
+import { supabase } from "./supabase.js";
+
+const STORAGE_KEY = "bill-pto-2026-v2";
+const MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+const WEEKDAYS = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+
+const ALL_HOLIDAYS = {
+  "2026-01-01": "New Year's Day",
+  "2026-05-25": "Memorial Day",
+  "2026-07-03": "Independence Day (observed)",
+  "2026-09-07": "Labor Day",
+  "2026-11-26": "Thanksgiving Day",
+  "2026-11-27": "Day after Thanksgiving",
+  "2026-12-24": "Day before Christmas",
+  "2026-12-25": "Christmas Day",
+  "2027-01-01": "New Year's Day",
+  "2027-05-31": "Memorial Day",
+  "2027-07-05": "Independence Day (observed)",
+  "2027-09-06": "Labor Day",
+  "2027-11-25": "Thanksgiving Day",
+  "2027-11-26": "Day after Thanksgiving",
+  "2027-12-24": "Day before Christmas",
+  "2027-12-27": "Christmas Day (observed)",
+};
+
+const OTHER_HOLIDAYS = {
+  "2026-01-19": "Martin Luther King Jr. Day",
+  "2026-02-16": "Presidents' Day",
+  "2026-06-19": "Juneteenth",
+  "2026-10-12": "Columbus Day",
+  "2026-11-11": "Veterans Day",
+  "2027-01-18": "Martin Luther King Jr. Day",
+  "2027-02-15": "Presidents' Day",
+  "2027-06-19": "Juneteenth",
+  "2027-10-11": "Columbus Day",
+  "2027-11-11": "Veterans Day",
+};
+
+const FY_END = new Date(2026, 7, 31);
+const ACCRUAL_RATE_PRE5 = 7.0;
+const ACCRUAL_RATE_POST5 = 7.67;
+const ACCRUAL_RATE_POST10 = 8.33;
+const MILESTONE_DATE = new Date(2026, 7, 2);
+const HOURS_PER_DAY = 8;
+const CUL_DAYS_TOTAL = 2;
+
+function getPayPeriodEndDates() {
+  const dates = [];
+  const interval = 365 / 24;
+  // Generate 15 fiscal years starting from FY2026 (Sep 2025) to cover future year views
+  for (let fy = 0; fy < 15; fy++) {
+    const start = new Date(2025 + fy, 8, 1); // Sep 1 of each year
+    for (let i = 0; i < 24; i++) {
+      const d = new Date(start);
+      d.setDate(d.getDate() + Math.round(interval * (i + 1)));
+      dates.push(d);
+    }
+  }
+  return dates;
+}
+const PAY_PERIOD_ENDS = getPayPeriodEndDates();
+
+function dkey(y, m, d) {
+  return y + "-" + String(m + 1).padStart(2, "0") + "-" + String(d).padStart(2, "0");
+}
+function daysIn(y, m) { return new Date(y, m + 1, 0).getDate(); }
+function dayOfWeek(y, m, d) { return new Date(y, m, d).getDay(); }
+function isWknd(y, m, d) { var w = dayOfWeek(y, m, d); return w === 0 || w === 6; }
+function isHol(key) { return key in ALL_HOLIDAYS; }
+function isOtherHol(key) { return key in OTHER_HOLIDAYS; }
+
+var DEFAULT_DATA = {
+  "2026-01-27": "PTO", "2026-01-28": "PTO", "2026-01-29": "PTO", "2026-01-30": "PTO",
+  "2026-02-02": "PTO", "2026-02-03": "PTO", "2026-02-04": "PTO", "2026-02-05": "PTO", "2026-02-06": "PTO",
+  "2026-02-09": "PTO", "2026-02-10": "PTO", "2026-02-11": "PTO", "2026-02-12": "PTO", "2026-02-13": "PTO",
+  "2026-02-16": "CUL", "2026-02-17": "CUL",
+};
+
+var mono = "'Space Mono', monospace";
+var grotesk = "'Space Grotesk', sans-serif";
+var work = "'Work Sans', sans-serif";
+var goudy = "'Sorts Mill Goudy', serif";
+
+var C = {
+  bg: "#FFFFFF",
+  panelBg: "#F8F8F8",
+  surface: "#FFFFFF",
+  border: "#E3E3E3",
+  text: "#000000",
+  textSec: "#757575",
+  textDim: "#505050",
+  pto: "#D4F773",
+  cul: "#F4FD7A",
+  hol: "#FFF199",
+  used: "#F5F4F0",
+  today: "#000000",
+  todayText: "#FFFFFF",
+  weekend: "#F8F8F8",
+  neg: "#DB2223",
+  negBg: "#FFD3D3",
+  unpaid: "#85B500",
+};
+
+function DateField({ value, onChange, onFocus, onBlur, isFocused }) {
+  var parts = (value || "").split("-");
+  var [yyyy, setYyyy] = useState(parts[0] || "");
+  var [mm, setMm] = useState(parts[1] || "");
+  var [dd, setDd] = useState(parts[2] || "");
+
+  useEffect(function() {
+    var p = (value || "").split("-");
+    setYyyy(p[0] || ""); setMm(p[1] || ""); setDd(p[2] || "");
+  }, [value]);
+
+  var containerRef = useRef(null);
+  var mmRef = useRef(null);
+  var ddRef = useRef(null);
+  var yyyyRef = useRef(null);
+
+  function tryEmit(y, m, d) {
+    if (y.length === 4 && m.length === 2 && d.length === 2) onChange(y + "-" + m + "-" + d);
+  }
+  function handleContainerFocus(e) {
+    if (!containerRef.current.contains(e.relatedTarget)) onFocus && onFocus();
+  }
+  function handleContainerBlur(e) {
+    if (!containerRef.current.contains(e.relatedTarget)) onBlur && onBlur();
+  }
+
+  var seg = { border: "none", outline: "none", fontFamily: work, fontSize: 14, fontWeight: 500, background: "transparent", color: C.text, textAlign: "center", padding: 0 };
+  var sep = { fontFamily: work, fontSize: 14, fontWeight: 400, color: C.textSec, userSelect: "none" };
+
+  return (
+    <div ref={containerRef} onFocus={handleContainerFocus} onBlur={handleContainerBlur}
+      style={{ display: "flex", alignItems: "center", gap: 2 }}>
+      <input ref={mmRef} type="text" value={mm} maxLength={2} placeholder="MM"
+        onChange={function(e) { var v = e.target.value.replace(/\D/g,"").slice(0,2); setMm(v); tryEmit(yyyy,v,dd); if (v.length===2) ddRef.current && ddRef.current.focus(); }}
+        style={Object.assign({}, seg, { width: 22 })} />
+      <span style={sep}>/</span>
+      <input ref={ddRef} type="text" value={dd} maxLength={2} placeholder="DD"
+        onChange={function(e) { var v = e.target.value.replace(/\D/g,"").slice(0,2); setDd(v); tryEmit(yyyy,mm,v); if (v.length===2) yyyyRef.current && yyyyRef.current.focus(); }}
+        onKeyDown={function(e) { if (e.key==="Backspace" && dd==="") mmRef.current && mmRef.current.focus(); }}
+        style={Object.assign({}, seg, { width: 22 })} />
+      <span style={sep}>/</span>
+      <input ref={yyyyRef} type="text" value={yyyy} maxLength={4} placeholder="YYYY"
+        onChange={function(e) { var v = e.target.value.replace(/\D/g,"").slice(0,4); setYyyy(v); tryEmit(v,mm,dd); }}
+        onKeyDown={function(e) { if (e.key==="Backspace" && yyyy==="") ddRef.current && ddRef.current.focus(); }}
+        style={Object.assign({}, seg, { width: 36 })} />
+    </div>
+  );
+}
+
+function AnimatedDigit({ digit, slotState }) {
+  var d = parseInt(digit, 10);
+  var [displayD, setDisplayD] = useState(d);
+  var [animating, setAnimating] = useState(false);
+  var [targetPct, setTargetPct] = useState(slotState === 'entering' ? -66.666 : -33.333);
+  var prevRef = useRef(d);
+  var timerRef = useRef(null);
+
+  // entering: slide in from above
+  useEffect(function() {
+    if (slotState !== 'entering') return;
+    var raf = requestAnimationFrame(function() {
+      requestAnimationFrame(function() {
+        setAnimating(true);
+        setTargetPct(-33.333);
+        timerRef.current = setTimeout(function() { setAnimating(false); }, 210);
+      });
+    });
+    return function() { cancelAnimationFrame(raf); };
+  }, []);
+
+  // exiting: scroll up into nothing (width collapse handled by CSS animation on wrapper)
+  useEffect(function() {
+    if (slotState !== 'exiting') return;
+    if (timerRef.current) clearTimeout(timerRef.current);
+    setAnimating(true);
+    setTargetPct(0);
+  }, [slotState]);
+
+  // merging: staying slot scrolls down to reveal new digit value below it
+  useEffect(function() {
+    if (slotState !== 'merging') return;
+    if (timerRef.current) clearTimeout(timerRef.current);
+    prevRef.current = d;
+    setAnimating(true);
+    setTargetPct(-66.666);
+    timerRef.current = setTimeout(function() {
+      setDisplayD(d);
+      setTargetPct(-33.333);
+      setAnimating(false);
+    }, 210);
+  }, [slotState]);
+
+  // normal digit change (same digit count)
+  useEffect(function() {
+    if (slotState !== 'normal') return;
+    var prev = prevRef.current;
+    if (d === prev) return;
+    prevRef.current = d;
+    if (timerRef.current) clearTimeout(timerRef.current);
+    var isInc = (d === prev + 1) || (prev === 9 && d === 0);
+    var isDec = (d === prev - 1) || (prev === 0 && d === 9);
+    if (isInc || isDec) {
+      var target = isInc ? 0 : -66.666;
+      setAnimating(true);
+      setTargetPct(target);
+      timerRef.current = setTimeout(function() {
+        setAnimating(false);
+        setDisplayD(d);
+        setTargetPct(-33.333);
+      }, 210);
+    } else {
+      setDisplayD(d);
+    }
+  }, [d, slotState]);
+
+  var above = (displayD + 1) % 10;
+  var topItem    = (slotState === 'entering' || slotState === 'exiting') ? '\u00A0' : above;
+  // bottom always uses d: for dec animations d===below anyway; for merging d is the new digit;
+  // for entering/exiting nothing should appear below
+  var bottomItem = (slotState === 'entering' || slotState === 'exiting') ? '\u00A0' : d;
+
+  return (
+    // Outer wrapper: collapses width+opacity when exiting so label slides left
+    <span style={{
+      display: 'inline-block',
+      overflow: 'hidden',
+      animation: slotState === 'exiting' ? 'digitWidthExit 200ms cubic-bezier(0.4, 0, 0, 1) forwards' : 'none',
+    }}>
+      <span style={{ display: 'inline-block', overflow: 'hidden', height: '1em' }}>
+        <span style={{
+          display: 'block',
+          transform: 'translateY(' + targetPct + '%)',
+          transition: animating ? 'transform 200ms cubic-bezier(0.4, 0, 0, 1)' : 'none',
+        }}>
+          <span style={{ display: 'block', lineHeight: 1 }}>{topItem}</span>
+          <span style={{ display: 'block', lineHeight: 1 }}>{displayD}</span>
+          <span style={{ display: 'block', lineHeight: 1 }}>{bottomItem}</span>
+        </span>
+      </span>
+    </span>
+  );
+}
+
+function AnimatedNumber({ value, style }) {
+  var keyRef = useRef(0);
+  var prevValueRef = useRef(value);
+  var [slots, setSlots] = useState(function() {
+    return String(value).split('').map(function(d, i) {
+      return { digit: parseInt(d, 10), key: 's' + i, state: 'normal' };
+    });
+  });
+
+  useEffect(function() {
+    var prev = prevValueRef.current;
+    if (value === prev) return;
+    prevValueRef.current = value;
+    var prevStr = String(prev);
+    var currStr = String(value);
+
+    if (prevStr.length === currStr.length) {
+      setSlots(function(old) {
+        return currStr.split('').map(function(d, i) {
+          return { digit: parseInt(d, 10), key: old[i].key, state: 'normal' };
+        });
+      });
+    } else if (currStr.length < prevStr.length) {
+      // Lost last digit (e.g. 10→9):
+      // - remaining slots (left-aligned) stay and MERGE to new digits
+      // - last old slot EXITS with width collapse
+      setSlots(function(old) {
+        var merging = currStr.split('').map(function(d, i) {
+          return { digit: parseInt(d, 10), key: old[i].key, state: 'merging' };
+        });
+        var exiting = { digit: old[old.length - 1].digit, key: old[old.length - 1].key, state: 'exiting' };
+        return merging.concat([exiting]);
+      });
+      setTimeout(function() {
+        setSlots(function(s) {
+          return s
+            .filter(function(sl) { return sl.state !== 'exiting'; })
+            .map(function(sl) { return sl.state === 'merging' ? { digit: sl.digit, key: sl.key, state: 'normal' } : sl; });
+        });
+      }, 210);
+    } else {
+      // Gained a leading digit (e.g. 9→10): add entering slot at front
+      var newKey = 's' + (++keyRef.current);
+      setSlots(function(old) {
+        var entering = { digit: parseInt(currStr[0], 10), key: newKey, state: 'entering' };
+        var rest = currStr.slice(1).split('').map(function(d, i) {
+          return { digit: parseInt(d, 10), key: old[i] ? old[i].key : 's' + (++keyRef.current), state: 'normal' };
+        });
+        return [entering].concat(rest);
+      });
+      setTimeout(function() {
+        setSlots(function(s) {
+          return s.map(function(sl) { return sl.state === 'entering' ? { digit: sl.digit, key: sl.key, state: 'normal' } : sl; });
+        });
+      }, 210);
+    }
+  }, [value]);
+
+  return (
+    <span style={Object.assign({ display: 'inline-flex' }, style)}>
+      {slots.map(function(slot) {
+        return <AnimatedDigit key={slot.key} digit={slot.digit} slotState={slot.state} />;
+      })}
+    </span>
+  );
+}
+
+export default function PTOTracker() {
+  var [days, setDays] = useState(DEFAULT_DATA);
+  var [viewYear, setViewYear] = useState(2026);
+  var [loaded, setLoaded] = useState(false);
+  var [active, setActive] = useState(null);
+  var [showProj, setShowProj] = useState(false);
+  var [showOpps, setShowOpps] = useState(false);
+  var [previewDates, setPreviewDates] = useState([]);
+  var [previewCulDates, setPreviewCulDates] = useState([]);
+  var [showSettings, setShowSettings] = useState(false);
+  var [bal, setBal] = useState(-12);
+  var [balDate, setBalDate] = useState("2026-04-01");
+  var [toast, setToast] = useState(null);
+  var [toastVisible, setToastVisible] = useState(false);
+  var [showPanel, setShowPanel] = useState(false);
+  var [panelTab, setPanelTab] = useState("reco");
+  var [userName, setUserName] = useState("Bill");
+  var [editName, setEditName] = useState("Bill");
+  var [editCL, setEditCL] = useState("8");
+  var [editBal, setEditBal] = useState(-12);
+  var [editBalDate, setEditBalDate] = useState("2026-04-01");
+  var [startStr, setStartStr] = useState("2021-08-02");
+  var [editStart, setEditStart] = useState("2021-08-02");
+  var [settingsDirty, setSettingsDirty] = useState(false);
+  var [focusedField, setFocusedField] = useState(null);
+  var [justToggled, setJustToggled] = useState({});
+  var [tooltip, setTooltip] = useState(null);
+  var [tooltipShift, setTooltipShift] = useState(0);
+  var prevDaysRef = useRef(null);
+  var tooltipDivRef = useRef(null);
+  var [sliderDays, setSliderDays] = useState(null);
+  var tabBarRef = useRef(null);
+  var tabItemRefs = useRef({});
+  var yearNavRef = useRef(null);
+  var [dotBtnTop, setDotBtnTop] = useState(32);
+  var [indicatorPos, setIndicatorPos] = useState({ left: 0, width: 0 });
+  var MOBILE_BP = 768;
+  var [isMobile, setIsMobile] = useState(typeof window !== "undefined" ? window.innerWidth <= MOBILE_BP : false);
+  var [writeSelectedGroups, setWriteSelectedGroups] = useState([]);
+  var [approvedGroups, setApprovedGroups] = useState({});
+  // Derived — no state needed
+  var historyRef = useRef([]);
+  var daysRef = useRef(days);
+
+  useEffect(function() { daysRef.current = days; }, [days]);
+
+  useLayoutEffect(function() {
+    if (!tooltipDivRef.current) { setTooltipShift(0); return; }
+    var rect = tooltipDivRef.current.getBoundingClientRect();
+    var margin = 8;
+    var shift = 0;
+    if (rect.left < margin) shift = margin - rect.left;
+    else if (rect.right > window.innerWidth - margin) shift = window.innerWidth - margin - rect.right;
+    setTooltipShift(shift);
+  }, [tooltip]);
+
+
+  useEffect(function() {
+    function onKeyDown(e) {
+      if (e.metaKey && e.key === "z" && !e.shiftKey) {
+        e.preventDefault();
+        if (historyRef.current.length > 0) {
+          var prev = historyRef.current[historyRef.current.length - 1];
+          historyRef.current = historyRef.current.slice(0, -1);
+          setDays(prev);
+        }
+      }
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return function() { window.removeEventListener("keydown", onKeyDown); };
+  }, []);
+
+  useEffect(function() {
+    function handleResize() {
+      setIsMobile(window.innerWidth <= MOBILE_BP);
+      if (yearNavRef.current) {
+        var rect = yearNavRef.current.getBoundingClientRect();
+        setDotBtnTop(rect.top);
+      }
+    }
+    requestAnimationFrame(handleResize);
+    window.addEventListener("resize", handleResize);
+    return function() { window.removeEventListener("resize", handleResize); };
+  }, [showPanel, loaded]);
+
+  useEffect(function() {
+    async function loadData() {
+      try {
+        // Load days from Supabase
+        var res = await supabase.from('pto_days').select('*');
+        if (!res.error && res.data && res.data.length > 0) {
+          var loaded_days = {};
+          res.data.forEach(function(row) { loaded_days[row.date] = row.type; });
+          prevDaysRef.current = loaded_days;
+          setDays(loaded_days);
+        } else {
+          // First time: migrate existing localStorage days to Supabase
+          var r = localStorage.getItem(STORAGE_KEY);
+          if (r) {
+            var p = JSON.parse(r);
+            if (p.days && Object.keys(p.days).length > 0) {
+              var rows = Object.keys(p.days).map(function(date) { return { date: date, type: p.days[date] }; });
+              await supabase.from('pto_days').upsert(rows);
+              prevDaysRef.current = p.days;
+              setDays(p.days);
+            }
+          }
+        }
+        // Settings stay in localStorage
+        var r2 = localStorage.getItem(STORAGE_KEY);
+        if (r2) {
+          var p2 = JSON.parse(r2);
+          if (p2.bal !== undefined) setBal(p2.bal);
+          if (p2.balDate) setBalDate(p2.balDate);
+          if (p2.userName) setUserName(p2.userName);
+          if (p2.editCL) setEditCL(p2.editCL);
+          if (p2.approvedGroups) setApprovedGroups(p2.approvedGroups);
+        }
+        var storedName = localStorage.getItem("bill-pto-userName");
+        if (storedName) setUserName(storedName);
+      } catch(e) {}
+      setLoaded(true);
+    }
+    loadData();
+  }, []);
+
+  useEffect(function() {
+    if (!loaded) return;
+    // Sync days changes to Supabase
+    async function syncDays() {
+      var prev = prevDaysRef.current || {};
+      var curr = days;
+      var toUpsert = [];
+      Object.keys(curr).forEach(function(date) {
+        if (prev[date] !== curr[date]) toUpsert.push({ date: date, type: curr[date] });
+      });
+      var toDelete = Object.keys(prev).filter(function(date) { return !(date in curr); });
+      if (toUpsert.length > 0) await supabase.from('pto_days').upsert(toUpsert);
+      if (toDelete.length > 0) await supabase.from('pto_days').delete().in('date', toDelete);
+      prevDaysRef.current = Object.assign({}, curr);
+    }
+    syncDays();
+  }, [days, loaded]);
+
+  useEffect(function() {
+    if (!loaded) return;
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ bal: bal, balDate: balDate, userName: userName, editCL: editCL, approvedGroups: approvedGroups }));
+      localStorage.setItem("bill-pto-userName", userName);
+    } catch(e) {}
+  }, [bal, balDate, loaded, userName, editCL, approvedGroups]);
+
+  // Sync edit fields when settings tab opens
+  useEffect(function() {
+    if (panelTab === "settings") {
+      setEditName(userName);
+      setEditBal(bal);
+      setEditBalDate(balDate);
+      setEditStart(startStr);
+      setSettingsDirty(false);
+    }
+  }, [panelTab, userName, bal, balDate, startStr]);
+
+  // Slide tab indicator to active tab
+  useEffect(function() {
+    var container = tabBarRef.current;
+    var el = tabItemRefs.current[panelTab];
+    if (container && el) {
+      var cr = container.getBoundingClientRect();
+      var er = el.getBoundingClientRect();
+      setIndicatorPos({ left: er.left - cr.left, width: er.width });
+    }
+  }, [panelTab, showPanel]);
+
+  // Scroll calendar to first preview date when opportunity is selected
+  useEffect(function() {
+    if (previewDates.length === 0) return;
+    var firstKey = previewDates.slice().sort()[0];
+    var el = document.querySelector('[data-date="' + firstKey + '"]');
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  }, [previewDates]);
+
+  var notify = useCallback(function(msg) {
+    setToast(msg);
+    setToastVisible(true);
+    setTimeout(function() {
+      setToastVisible(false);
+      setTimeout(function() { setToast(null); }, 200);
+    }, 1800);
+  }, []);
+
+  var pushHistory = useCallback(function() {
+    historyRef.current = historyRef.current.slice(-19).concat([Object.assign({}, daysRef.current)]);
+  }, []);
+
+  var toggle = useCallback(function(key, type) {
+    pushHistory();
+    setDays(function(prev) {
+      var cur = prev[key] || "";
+      var next = cur === type ? "" : type;
+      var u = Object.assign({}, prev);
+      if (next === "") { delete u[key]; } else { u[key] = next; }
+      return u;
+    });
+    setActive(null);
+  }, [pushHistory]);
+
+  var stats = useMemo(function() {
+    var asOf = new Date(balDate);       // user's snapshot reference date
+    var today = new Date(); today.setHours(0,0,0,0);
+    var milestoneD = new Date(startStr); milestoneD.setFullYear(milestoneD.getFullYear() + 5);
+    var milestone10D = new Date(startStr); milestone10D.setFullYear(milestone10D.getFullYear() + 10);
+    var entries = Object.entries(days);
+    var fyStart = new Date(viewYear - 1, 8, 1);
+    var fyEnd = new Date(viewYear, 7, 31);
+
+    // FY counters
+    var ptoUsed = 0, ptoPlanned = 0, culUsed = 0, culPlanned = 0;
+    entries.forEach(function(entry) {
+      var k = entry[0], t = entry[1];
+      var d = new Date(k); var y = d.getFullYear();
+      var inFY = d >= fyStart && d <= fyEnd;
+      if (t === "PTO" && inFY) ptoUsed++;
+      if (t === "PLAN" && inFY) ptoPlanned++;
+      if (t === "CUL" && y === viewYear) culUsed++;
+      if (t === "PLAN_CUL" && y === viewYear) culPlanned++;
+    });
+
+    // Auto-compute current balance: snapshot + accruals to today − days taken since snapshot
+    var accToToday = 0;
+    PAY_PERIOD_ENDS.forEach(function(pp) {
+      if (pp > asOf && pp <= today)
+        accToToday += pp >= milestone10D ? ACCRUAL_RATE_POST10 : pp >= milestoneD ? ACCRUAL_RATE_POST5 : ACCRUAL_RATE_PRE5;
+    });
+    var takenSinceSnapshot = 0;
+    entries.forEach(function(entry) {
+      var k = entry[0], t = entry[1];
+      if (t === "PTO" || t === "CUL") {
+        var d = new Date(k);
+        if (d > asOf && d <= today) takenSinceSnapshot++;
+      }
+    });
+    var currentBal = bal + accToToday - takenSinceSnapshot * HOURS_PER_DAY;
+
+    // Future accruals: today → FY end
+    var futAcc = 0;
+    PAY_PERIOD_ENDS.forEach(function(pp) {
+      if (pp > today && pp <= fyEnd)
+        futAcc += pp >= milestone10D ? ACCRUAL_RATE_POST10 : pp >= milestoneD ? ACCRUAL_RATE_POST5 : ACCRUAL_RATE_PRE5;
+    });
+
+    // Planned PTO remaining after today (in FY)
+    var ptoAfter = 0;
+    entries.forEach(function(entry) {
+      var k = entry[0], t = entry[1];
+      if (t === "PLAN") {
+        var d = new Date(k);
+        if (d > today && d >= fyStart && d <= fyEnd) ptoAfter++;
+      }
+    });
+
+    var eoy = currentBal + futAcc - ptoAfter * HOURS_PER_DAY;
+    var avail = Math.floor((currentBal + futAcc) / HOURS_PER_DAY) - ptoAfter;
+
+    // Feasibility for each future PLAN date, anchored at today + currentBal
+    var feasibility = {};
+    var futurePlans = entries
+      .filter(function(e) { return e[1] === "PLAN" && new Date(e[0]) > today; })
+      .sort(function(a, b) { return a[0] < b[0] ? -1 : 1; });
+
+    futurePlans.forEach(function(entry) {
+      var pd = entry[0];
+      var planD = new Date(pd);
+      var acc = 0;
+      PAY_PERIOD_ENDS.forEach(function(pp) {
+        if (pp > today && pp <= planD) acc += pp >= milestone10D ? ACCRUAL_RATE_POST10 : pp >= milestoneD ? ACCRUAL_RATE_POST5 : ACCRUAL_RATE_PRE5;
+      });
+      var usedBy = 0;
+      futurePlans.forEach(function(e) { if (new Date(e[0]) <= planD) usedBy++; });
+      feasibility[pd] = (currentBal + acc - usedBy * HOURS_PER_DAY) >= 0;
+    });
+
+    var EOCY = new Date(viewYear, 11, 31);
+
+    // FY-end carry-over projection (anchored at today)
+    var balFYEnd = new Date(today.getFullYear() + (today.getMonth() >= 8 ? 1 : 0), 7, 31);
+    var accToBalFYEnd = 0;
+    PAY_PERIOD_ENDS.forEach(function(pp) {
+      if (pp > today && pp <= balFYEnd)
+        accToBalFYEnd += pp >= milestone10D ? ACCRUAL_RATE_POST10 : pp >= milestoneD ? ACCRUAL_RATE_POST5 : ACCRUAL_RATE_PRE5;
+    });
+    var ptoBeforeBalFYEnd = 0;
+    entries.forEach(function(entry) {
+      var k = entry[0], t = entry[1];
+      if (t === "PLAN") {
+        var d = new Date(k);
+        if (d > today && d <= balFYEnd) ptoBeforeBalFYEnd++;
+      }
+    });
+    var balanceAtFYEnd = currentBal + accToBalFYEnd - ptoBeforeBalFYEnd * HOURS_PER_DAY;
+    var carriedOver = Math.min(balanceAtFYEnd, 200);
+
+    var accSepToEOCY = 0;
+    PAY_PERIOD_ENDS.forEach(function(pp) {
+      if (pp > balFYEnd && pp <= EOCY) accSepToEOCY += pp >= milestone10D ? ACCRUAL_RATE_POST10 : pp >= milestoneD ? ACCRUAL_RATE_POST5 : ACCRUAL_RATE_PRE5;
+    });
+
+    var ptoSepToEOCY = 0;
+    entries.forEach(function(entry) {
+      var k = entry[0], t = entry[1];
+      if (t === "PLAN") {
+        var d = new Date(k);
+        if (d > balFYEnd && d <= EOCY) ptoSepToEOCY++;
+      }
+    });
+
+    var eocyDays;
+    if (EOCY <= balFYEnd) {
+      var directAcc = 0; var directPTO = 0;
+      PAY_PERIOD_ENDS.forEach(function(pp) {
+        if (pp > today && pp <= EOCY) directAcc += pp >= milestone10D ? ACCRUAL_RATE_POST10 : pp >= milestoneD ? ACCRUAL_RATE_POST5 : ACCRUAL_RATE_PRE5;
+      });
+      entries.forEach(function(entry) {
+        var k = entry[0], t = entry[1];
+        if (t === "PLAN") { var d = new Date(k); if (d > today && d <= EOCY) directPTO++; }
+      });
+      eocyDays = Math.floor((currentBal + directAcc) / HOURS_PER_DAY) - directPTO;
+    } else {
+      eocyDays = Math.floor((carriedOver + accSepToEOCY) / HOURS_PER_DAY) - ptoSepToEOCY;
+    }
+
+    return {
+      ptoUsed: ptoUsed, ptoPlanned: ptoPlanned,
+      culUsed: culUsed, culPlanned: culPlanned,
+      culRemaining: CUL_DAYS_TOTAL - culUsed - culPlanned,
+      balHrs: currentBal, futAcc: futAcc, eoy: eoy,
+      eoyDays: eoy / HOURS_PER_DAY, avail: avail,
+      eocyDays: eocyDays,
+      feasibility: feasibility,
+    };
+  }, [days, bal, balDate, viewYear, startStr]);
+
+  var opps = useMemo(function() {
+    var r = [];
+    var MS_PER_DAY = 86400000;
+
+    function addDays(date, n) {
+      var d = new Date(date.getTime());
+      d.setDate(d.getDate() + n);
+      return d;
+    }
+    function toKey(d) {
+      return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+    }
+    function dateIsWknd(d) { var w = d.getDay(); return w === 0 || w === 6; }
+    function dateIsHol(d) { return toKey(d) in ALL_HOLIDAYS; }
+
+    Object.entries(ALL_HOLIDAYS).forEach(function(entry) {
+      var k = entry[0], name = entry[1];
+      var parts = k.split("-").map(Number);
+      var holDate = new Date(parts[0], parts[1] - 1, parts[2]);
+      if (dateIsWknd(holDate)) return; // skip Sat/Sun holidays
+
+      // Available PTO weekdays before holiday (closest first), stopping at another holiday
+      var before = [];
+      var cur = addDays(holDate, -1);
+      while (before.length < 15) {
+        if (dateIsHol(cur)) break;
+        if (!dateIsWknd(cur)) before.push(toKey(cur));
+        cur = addDays(cur, -1);
+      }
+
+      // Available PTO weekdays after holiday (closest first), stopping at another holiday
+      var after = [];
+      cur = addDays(holDate, 1);
+      while (after.length < 15) {
+        if (dateIsHol(cur)) break;
+        if (!dateIsWknd(cur)) after.push(toKey(cur));
+        cur = addDays(cur, 1);
+      }
+
+      // Try every (n before, m after) combo; keep minimum-cost config per break size
+      var sizeMap = {};
+      for (var n = 0; n <= before.length; n++) {
+        for (var m = 0; m <= after.length; m++) {
+          if (n + m === 0) continue;
+          var cost = n + m;
+          if (cost > 15) continue;
+
+          var ptoDates = before.slice(0, n).concat(after.slice(0, m));
+
+          // Find the calendar span of the break
+          var allTs = ptoDates.map(function(dk) {
+            var p = dk.split("-").map(Number); return new Date(p[0], p[1]-1, p[2]).getTime();
+          });
+          allTs.push(holDate.getTime());
+
+          var minD = new Date(Math.min.apply(null, allTs));
+          var maxD = new Date(Math.max.apply(null, allTs));
+
+          // Extend span through adjacent weekends AND consecutive holidays
+          var safety = 0;
+          while (safety++ < 30) {
+            var prev = addDays(minD, -1);
+            if (dateIsWknd(prev) || dateIsHol(prev)) { minD = prev; } else { break; }
+          }
+          safety = 0;
+          while (safety++ < 30) {
+            var next = addDays(maxD, 1);
+            if (dateIsWknd(next) || dateIsHol(next)) { maxD = next; } else { break; }
+          }
+
+          var size = Math.round((maxD.getTime() - minD.getTime()) / MS_PER_DAY) + 1;
+          if (size < 4 || size > 20) continue;
+
+          if (!sizeMap[size] || cost < sizeMap[size].cost) {
+            sizeMap[size] = { cost: cost, ptoDates: ptoDates, startDate: toKey(minD), endDate: toKey(maxD) };
+          }
+        }
+      }
+
+      Object.entries(sizeMap).forEach(function(se) {
+        var size = parseInt(se[0]), info = se[1];
+        r.push({ date: k, name: name, size: size, ptoDates: info.ptoDates, startDate: info.startDate, endDate: info.endDate });
+      });
+    });
+
+    return r.sort(function(a, b) {
+      if (a.date !== b.date) return a.date < b.date ? -1 : 1;
+      return a.size - b.size;
+    });
+  }, []);
+
+  // Group opportunities by break size; hide any whose PTO dates are all already marked
+  // or that require more PTO than the user has available
+  var groupedOpps = useMemo(function() {
+    var groups = {};
+    opps.filter(function(o) {
+      if (new Date(o.date) < new Date()) return false;
+      // Only show if the holiday or any PTO date falls in viewYear (allows cross-year Jan 1 opportunities)
+      var holYear = parseInt(o.date.split("-")[0]);
+      var touchesViewYear = holYear === viewYear || o.ptoDates.some(function(d) { return parseInt(d.split("-")[0]) === viewYear; });
+      if (!touchesViewYear) return false;
+      // Count how many PTO dates still need to be planned
+      var unplanned = o.ptoDates.filter(function(d) {
+        return days[d] !== "PTO" && days[d] !== "CUL" && days[d] !== "PLAN" && days[d] !== "PLAN_CUL";
+      }).length;
+      // Hide if balance can't cover the remaining days needed
+      if (unplanned > Math.max(0, stats.avail)) return false;
+      // Hide if every PTO date is already covered
+      var allMarked = unplanned === 0;
+      return !allMarked;
+    }).forEach(function(o) {
+      var key = o.size + " DAYS";
+      if (!groups[key]) groups[key] = [];
+      groups[key].push(o);
+    });
+    return groups;
+  }, [opps, days, viewYear, stats]);
+
+  // Group future PLAN/PLAN_CUL dates into consecutive blocks (weekends/holidays don't break a group)
+  var writePlanGroups = useMemo(function() {
+    var today = new Date(); today.setHours(0,0,0,0);
+    var plannedDates = Object.entries(days)
+      .filter(function(e) { return (e[1] === "PLAN" || e[1] === "PLAN_CUL" || e[1] === "PLAN_UNPAID") && new Date(e[0] + "T12:00:00") > today; })
+      .map(function(e) { return e[0]; })
+      .sort();
+    if (plannedDates.length === 0) return [];
+    var groups = [];
+    var currentGroup = [plannedDates[0]];
+    for (var i = 1; i < plannedDates.length; i++) {
+      var d = new Date(plannedDates[i - 1] + "T12:00:00");
+      d.setDate(d.getDate() + 1);
+      var limit = new Date(plannedDates[i] + "T12:00:00");
+      var hasGap = false;
+      while (d < limit) {
+        var dow = d.getDay();
+        var dk = d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+        if (dow !== 0 && dow !== 6 && !isHol(dk)) { hasGap = true; break; }
+        d.setDate(d.getDate() + 1);
+      }
+      if (hasGap) { groups.push(currentGroup); currentGroup = [plannedDates[i]]; }
+      else { currentGroup.push(plannedDates[i]); }
+    }
+    groups.push(currentGroup);
+    return groups;
+  }, [days]);
+
+  // Auto-select all groups whenever the group list changes
+  useEffect(function() {
+    setWriteSelectedGroups(function(prev) {
+      return prev.filter(function(i) { return i < writePlanGroups.length; });
+    });
+  }, [writePlanGroups.length]);
+
+  var highlightedDates = useMemo(function() {
+    if (panelTab !== "write" || !showPanel) return [];
+    return writeSelectedGroups.reduce(function(acc, idx) {
+      return acc.concat(writePlanGroups[idx] || []);
+    }, []);
+  }, [writeSelectedGroups, writePlanGroups, panelTab, showPanel]);
+
+  function triggerPop(key) {
+    setJustToggled(function(prev) { return Object.assign({}, prev, { [key]: true }); });
+    setTimeout(function() {
+      setJustToggled(function(prev) { var u = Object.assign({}, prev); delete u[key]; return u; });
+    }, 300);
+  }
+
+  function getGroupSubRunLines(group) {
+    if (!group || group.length === 0) return [];
+    var subRuns = [], cur = [group[0]];
+    for (var i = 1; i < group.length; i++) {
+      var prev = new Date(group[i - 1] + "T12:00:00");
+      var next = new Date(group[i] + "T12:00:00");
+      if ((next - prev) / 86400000 === 1) { cur.push(group[i]); }
+      else { subRuns.push(cur); cur = [group[i]]; }
+    }
+    subRuns.push(cur);
+    return subRuns.map(function(run) {
+      var s = run[0].split("-"), e = run[run.length - 1].split("-");
+      var sm = MONTHS[parseInt(s[1]) - 1].slice(0, 3).toUpperCase();
+      var em = MONTHS[parseInt(e[1]) - 1].slice(0, 3).toUpperCase();
+      var sd = parseInt(s[2]), ed = parseInt(e[2]);
+      if (run.length === 1) return sm + " " + sd;
+      return sm + " " + sd + " \u2013 " + (s[1] !== e[1] ? em + " " : "") + ed;
+    });
+  }
+
+  function generateEmailText() {
+    var currentYear = new Date().getFullYear();
+    var selected = writeSelectedGroups.slice().sort(function(a, b) { return a - b; });
+    var dateLines = [];
+    var lastYear = null;
+    selected.forEach(function(idx) {
+      var group = writePlanGroups[idx];
+      if (!group) return;
+      var year = parseInt(group[0].split("-")[0]);
+      if (year !== lastYear) {
+        if (lastYear !== null) dateLines.push("");
+        if (year !== currentYear) dateLines.push(String(year));
+        lastYear = year;
+      }
+      getGroupSubRunLines(group).forEach(function(line) { dateLines.push(line); });
+    });
+    return "Hello!\n\nPlanning the following PTOs:\n" + dateLines.join("\n") + "\n\nBest,\n" + userName;
+  }
+
+  function handleDateOption(key, option) {
+    var today = new Date();
+    today.setHours(0,0,0,0);
+    var dateObj = new Date(key);
+    dateObj.setHours(0,0,0,0);
+    var isPast = dateObj < today;
+
+    if (option === "pto") {
+      var type = isPast ? "PTO" : "PLAN";
+      toggle(key, type);
+      if (!isPast) triggerPop(key);
+    } else if (option === "cul") {
+      var culType = isPast ? "CUL" : "PLAN_CUL";
+      toggle(key, culType);
+      if (!isPast) triggerPop(key);
+    }
+    setActive(null);
+  }
+
+  function renderDay(year, month, day) {
+    var key = dkey(year, month, day);
+    var type = days[key] || "";
+    var hol = isHol(key);
+    var otherHol = !hol && !type && isOtherHol(key);
+    var wk = isWknd(year, month, day);
+    var isAct = active === key;
+    var isPreview = previewDates.indexOf(key) !== -1;
+    var now = new Date();
+    var isToday = now.getFullYear() === year && now.getMonth() === month && now.getDate() === day;
+    // Determine cell style
+    var cellBg = "transparent";
+    var cellColor = C.textDim;
+    var cellBorder = "none";
+
+    if (isToday) {
+      cellBg = C.today;
+      cellColor = C.todayText;
+    } else if (type === "PTO" || type === "CUL") {
+      // Used days (past)
+      cellBg = C.used;
+      cellColor = C.text;
+    } else if (type === "PLAN") {
+      // Check feasibility
+      var feas = stats.feasibility[key];
+      if (feas === false) {
+        cellBg = C.negBg;
+        cellColor = C.neg;
+      } else {
+        cellBg = C.pto;
+        cellColor = C.text;
+      }
+    } else if (type === "PLAN_CUL") {
+      cellBg = C.cul;
+      cellColor = C.text;
+    } else if (type === "PLAN_UNPAID") {
+      cellBg = "transparent";
+      cellColor = C.text;
+    } else if (type === "UNPAID") {
+      cellBg = "transparent";
+      cellColor = C.textDim;
+    } else if (hol) {
+      cellBg = C.hol;
+      cellColor = C.text;
+    } else if (otherHol) {
+      cellBg = C.hol + "33";
+      cellColor = C.textDim;
+    } else if (wk) {
+      cellBg = C.weekend;
+      cellColor = C.textDim;
+    }
+
+    // Preview override — bg at 50% opacity, text stays solid
+    if (isPreview && !type && !hol) {
+      cellBg = (previewCulDates.indexOf(key) !== -1 ? C.cul : C.pto) + "80";
+      cellColor = C.text;
+    }
+
+    // Determine current "option" for the popup
+    var currentOption = "unused";
+    if (type === "PTO" || type === "PLAN") currentOption = "pto";
+    else if (type === "CUL" || type === "PLAN_CUL") currentOption = "cul";
+
+    // Hypothetical PTO feasibility for unassigned future dates
+    var ptoFeasible = true;
+    var dateObj = new Date(year, month, day);
+    var asOfDate = new Date(balDate);
+    if (!type && dateObj > asOfDate) {
+      var milestoneD = new Date(startStr); milestoneD.setFullYear(milestoneD.getFullYear() + 5);
+      var milestone10D = new Date(startStr); milestone10D.setFullYear(milestone10D.getFullYear() + 10);
+      var hypAcc = 0;
+      PAY_PERIOD_ENDS.forEach(function(pp) {
+        if (pp > asOfDate && pp <= dateObj) {
+          hypAcc += pp >= milestone10D ? ACCRUAL_RATE_POST10 : pp >= milestoneD ? ACCRUAL_RATE_POST5 : ACCRUAL_RATE_PRE5;
+        }
+      });
+      var hypUsed = 0;
+      Object.entries(days).forEach(function(e2) {
+        var k2 = e2[0], t2 = e2[1];
+        if (t2 === "PTO" || t2 === "PLAN") {
+          var d2 = new Date(k2);
+          if (d2 > asOfDate && d2 <= dateObj) hypUsed++;
+        }
+      });
+      ptoFeasible = (bal + hypAcc - (hypUsed + 1) * HOURS_PER_DAY) >= 0;
+    }
+
+    return (
+      <div
+        key={key}
+        onClick={function(e) {
+          e.stopPropagation();
+          if (hol || wk) return;
+          // Cmd+click: toggle between PLAN and PLAN_UNPAID
+          if (e.metaKey) {
+            if (type === "PLAN") {
+              pushHistory();
+              setDays(function(prev) { var u = Object.assign({}, prev); u[key] = "PLAN_UNPAID"; return u; });
+              setActive(null);
+            } else if (type === "PLAN_UNPAID") {
+              pushHistory();
+              setDays(function(prev) { var u = Object.assign({}, prev); u[key] = "PLAN"; return u; });
+              setActive(null);
+            }
+            return;
+          }
+          if (type) {
+            // Already assigned — clear it directly
+            pushHistory();
+            setDays(function(prev) { var u = Object.assign({}, prev); delete u[key]; return u; });
+            setActive(null);
+          } else {
+            var clickedDate = new Date(year, month, day);
+            var now = new Date(); now.setHours(0,0,0,0);
+            var isFuture = clickedDate > now;
+            var culExhausted = (stats.culUsed + stats.culPlanned) >= CUL_DAYS_TOTAL;
+            if (isFuture && culExhausted) {
+              // Skip popup — directly toggle planned PTO
+              toggle(key, "PLAN");
+              triggerPop(key);
+            } else {
+              // Show popup to choose PTO or CUL
+              setActive(isAct ? null : key);
+            }
+          }
+        }}
+        data-date={key}
+        data-holiday={hol || otherHol ? "true" : undefined}
+        onMouseEnter={hol || otherHol ? function() { setTooltip(key); } : null}
+        onMouseLeave={hol || otherHol ? function() { setTooltip(null); } : null}
+        style={{
+          position: "relative", width: "100%", aspectRatio: "1",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          borderRadius: 999, cursor: hol || wk ? "default" : "pointer",
+          fontSize: 12, fontFamily: work, fontWeight: 400,
+          color: cellColor,
+          background: "transparent",
+          userSelect: "none",
+        }}
+      >
+        <div style={{
+          position: "absolute", inset: 0, borderRadius: 999,
+          background: (type === "PLAN_UNPAID" || type === "UNPAID") ? "transparent" : cellBg,
+          border: type === "PLAN_UNPAID" ? "2px dashed " + C.pto
+                : type === "UNPAID" ? "2px dashed " + C.border
+                : highlightedDates.indexOf(key) !== -1 ? "1px solid #84B400"
+                : "none",
+          boxShadow: isAct ? "0 0 0 0.5px " + C.border : "none",
+          transition: "background 0.15s, box-shadow 0.15s",
+          animation: justToggled[key] ? "dayCellPop 100ms cubic-bezier(0.4, 0, 0, 1) both" : "none",
+        }} />
+        <span style={{ position: "relative", color: cellColor, transition: "color 0.15s" }}>{day}</span>
+        {isAct ? (
+          <div onClick={function(e) { e.stopPropagation(); }} style={{
+            position: "absolute", top: "100%", left: "50%", transform: "translateX(-50%)",
+            marginTop: 4, background: C.surface,
+            borderRadius: 12, padding: 8, zIndex: 100,
+            boxShadow: "0 4px 16px rgba(0,0,0,0.08)",
+            width: 160,
+            transformOrigin: "top center",
+            animation: "popupBounce 0.2s cubic-bezier(0.4, 0, 0, 1) both",
+          }}>
+            {[
+              { opt: "pto", label: "PTO DAY", circleBg: ptoFeasible ? C.pto : C.negBg, circleBorder: "none", labelColor: ptoFeasible ? null : C.neg },
+              { opt: "cul", label: "CUL DAY", circleBg: C.cul, circleBorder: "none", labelColor: null },
+            ].map(function(item) {
+              var isSelected = currentOption === item.opt;
+              return (
+                <div key={item.opt}
+                  onClick={function() { handleDateOption(key, item.opt); }}
+                  onMouseEnter={function(e) { e.currentTarget.style.color = item.labelColor || C.text; }}
+                  onMouseLeave={function(e) { if (!isSelected) e.currentTarget.style.color = item.labelColor || C.textSec; }}
+                  style={{
+                    display: "flex", alignItems: "center", gap: 8,
+                    padding: "6px 8px", cursor: "pointer", borderRadius: 8,
+                    color: isSelected ? C.text : (item.labelColor || C.textSec),
+                    fontWeight: isSelected ? 600 : 400,
+                    fontFamily: work, fontSize: 11, textTransform: "uppercase",
+                    letterSpacing: 0.3,
+                  }}>
+                  <div style={{
+                    width: 24, height: 24, borderRadius: 999,
+                    background: item.circleBg, border: item.circleBorder,
+                    flexShrink: 0,
+                  }} />
+                  {item.label}
+                </div>
+              );
+            })}
+          </div>
+        ) : null}
+        {tooltip === key ? (
+          <div ref={tooltipDivRef} style={{
+            position: "absolute", top: "calc(100% + 6px)", left: "50%",
+            transform: "translateX(calc(-50% + " + tooltipShift + "px))",
+            background: C.surface, color: C.textSec,
+            padding: "6px 12px", borderRadius: 10,
+            fontSize: 12, fontFamily: work, fontWeight: 400,
+            pointerEvents: "none", zIndex: 200,
+            boxShadow: "0 2px 10px rgba(0,0,0,0.08)",
+            border: "0.5px solid " + C.border,
+            whiteSpace: "nowrap",
+          }}>{ALL_HOLIDAYS[key] || OTHER_HOLIDAYS[key]}</div>
+        ) : null}
+      </div>
+    );
+  }
+
+  if (!loaded) return <div style={{ padding: 40, fontFamily: work, color: C.textSec, textAlign: "center" }}>Loading...</div>;
+
+  var todayStr = new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+
+  return (
+    <div style={{ display: "flex", fontFamily: work, color: C.text, background: C.bg, minHeight: "100vh", maxWidth: "100vw", overflow: "hidden" }}
+      onClick={function() { setActive(null); }}
+      onMouseMove={function(e) {
+        setTooltip(function(curr) {
+          if (!curr) return null;
+          return e.target.closest('[data-holiday="true"]') ? curr : null;
+        });
+      }}>
+
+      {toast ? <div style={{ position: "fixed", bottom: 24, left: "50%", transform: "translateX(-50%)", background: C.text, color: C.bg, padding: "10px 20px", borderRadius: 999, fontSize: 13, fontFamily: work, zIndex: 1000, whiteSpace: "nowrap", animation: toastVisible ? "toastIn 200ms cubic-bezier(0.4, 0, 0, 1) both" : "toastOut 200ms cubic-bezier(0.4, 0, 0, 1) both" }}>{toast}</div> : null}
+
+      {/* Panel toggle - 4 dot grid (fixed position, desktop only) */}
+      {!isMobile && (
+        <div onClick={function(e) { e.stopPropagation(); setShowPanel(!showPanel); }}
+          onMouseEnter={function(e){ if (!showPanel) e.currentTarget.style.background = C.border; }}
+          onMouseLeave={function(e){ if (!showPanel) e.currentTarget.style.background = showPanel ? C.text : C.panelBg; }}
+          onMouseDown={function(e){ e.currentTarget.style.background = C.text; }}
+          onMouseUp={function(e){ e.currentTarget.style.background = showPanel ? C.text : C.border; }}
+          style={{
+            position: "fixed", top: dotBtnTop, right: 40, zIndex: 700,
+            width: 48, height: 48, borderRadius: 999,
+            background: showPanel ? C.text : C.panelBg,
+            display: "flex", alignItems: "center", justifyContent: "center",
+            cursor: "pointer",
+          }}>
+          <div style={{ display: "grid", gridTemplateColumns: "3.5px 3.5px", gap: 3, transform: showPanel ? "rotate(360deg)" : "rotate(0deg)", transition: "transform 400ms cubic-bezier(0.4, 0, 0, 1)" }}>
+            {[0,1,2,3].map(function(i) {
+              return <div key={i} style={{ width: 3.5, height: 3.5, borderRadius: 999, background: showPanel ? C.bg : C.textDim }} />;
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Main Content Area - independent scroll */}
+      <div style={{ flex: 1, minWidth: 0, height: "100vh", overflowY: "auto", overflowX: "hidden" }}>
+
+        {/* Sticky Top Section */}
+        <div style={{ position: "sticky", top: 0, zIndex: 600, background: C.bg }}>
+          <div style={{ padding: isMobile ? "20px 20px 0 20px" : "32px 40px 0 40px" }}>
+            {/* Mobile stats row (compact) - hidden when panel active */}
+            {isMobile && (
+              <div style={{ display: "flex", marginBottom: showPanel ? 0 : 40, maxHeight: showPanel ? 0 : 120, opacity: showPanel ? 0 : 1, overflow: "hidden", transition: "max-height 400ms cubic-bezier(0.4, 0, 0, 1), opacity 400ms cubic-bezier(0.4, 0, 0, 1), margin-bottom 400ms cubic-bezier(0.4, 0, 0, 1)" }}>
+                <div style={{ width: "50%", display: "flex", alignItems: "baseline", gap: 8 }}>
+                  <AnimatedNumber value={stats.eocyDays} style={{ fontFamily: mono, fontWeight: 400, fontSize: 44, lineHeight: 1 }} />
+                  <div style={{ position: "relative", top: -6 }}>
+                    <div style={{ position: "absolute", bottom: "100%", marginBottom: 3, fontFamily: work, fontSize: 11, fontWeight: 600, color: C.text, textTransform: "uppercase", letterSpacing: 0.3, lineHeight: 1, whiteSpace: "nowrap" }}>PTO</div>
+                    <div style={{ fontFamily: work, fontSize: 11, fontWeight: 600, color: C.text, textTransform: "uppercase", letterSpacing: 0.3, lineHeight: 1, whiteSpace: "nowrap" }}>Days</div>
+                  </div>
+                </div>
+                <div style={{ width: "50%", display: "flex", alignItems: "baseline", gap: 8 }}>
+                  <AnimatedNumber value={stats.culRemaining} style={{ fontFamily: mono, fontWeight: 400, fontSize: 44, lineHeight: 1 }} />
+                  <div style={{ position: "relative", top: -6 }}>
+                    <div style={{ position: "absolute", bottom: "100%", marginBottom: 3, fontFamily: work, fontSize: 11, fontWeight: 600, color: C.text, textTransform: "uppercase", letterSpacing: 0.3, lineHeight: 1, whiteSpace: "nowrap" }}>CUL</div>
+                    <div style={{ fontFamily: work, fontSize: 11, fontWeight: 600, color: C.text, textTransform: "uppercase", letterSpacing: 0.3, lineHeight: 1, whiteSpace: "nowrap" }}>Days</div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Top Bar - desktop: stats left + nav right; mobile: nav row */}
+            <div style={{ display: "flex", justifyContent: isMobile ? "center" : "space-between", alignItems: "center", flexWrap: isMobile ? "nowrap" : "wrap", gap: isMobile ? 8 : 20 }}>
+              {/* Desktop stats (already rendered above on mobile) */}
+              {!isMobile && (
+                <div style={{ display: "flex", gap: 32 }}>
+                  <div style={{ display: "flex", alignItems: "flex-end", gap: 8 }}>
+                    <AnimatedNumber value={stats.eocyDays} style={{ fontFamily: mono, fontWeight: 400, fontSize: 54, lineHeight: 1 }} />
+                    <div style={{ position: "relative", marginBottom: 12 }}>
+                      <div style={{ position: "absolute", bottom: "100%", marginBottom: 3, fontFamily: work, fontSize: 11, fontWeight: 600, color: C.text, textTransform: "uppercase", letterSpacing: 0.4, lineHeight: 1, whiteSpace: "nowrap" }}>PTO</div>
+                      <div style={{ fontFamily: work, fontSize: 11, fontWeight: 600, color: C.text, textTransform: "uppercase", letterSpacing: 0.4, lineHeight: 1, whiteSpace: "nowrap" }}>Days</div>
+                    </div>
+                  </div>
+                  <div style={{ display: "flex", alignItems: "flex-end", gap: 8 }}>
+                    <AnimatedNumber value={stats.culRemaining} style={{ fontFamily: mono, fontWeight: 400, fontSize: 54, lineHeight: 1 }} />
+                    <div style={{ position: "relative", marginBottom: 12 }}>
+                      <div style={{ position: "absolute", bottom: "100%", marginBottom: 3, fontFamily: work, fontSize: 11, fontWeight: 600, color: C.text, textTransform: "uppercase", letterSpacing: 0.4, lineHeight: 1, whiteSpace: "nowrap" }}>CUL</div>
+                      <div style={{ fontFamily: work, fontSize: 11, fontWeight: 600, color: C.text, textTransform: "uppercase", letterSpacing: 0.4, lineHeight: 1, whiteSpace: "nowrap" }}>Days</div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Year nav row */}
+              <div style={{ display: "flex", alignItems: "center", gap: 8, width: isMobile ? "100%" : "auto", marginRight: isMobile ? 0 : (showPanel ? 0 : 56), transition: "margin-right 400ms cubic-bezier(0.4, 0, 0, 1)" }}>
+                {/* Mobile: dot button inline before year nav */}
+                {isMobile && (
+                  <div onClick={function(e) { e.stopPropagation(); setShowPanel(!showPanel); }}
+                    style={{
+                      width: 54, height: 54, borderRadius: 999,
+                      background: showPanel ? C.text : C.panelBg,
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                      cursor: "pointer", flexShrink: 0,
+                    }}>
+                    <div style={{ display: "grid", gridTemplateColumns: "3.5px 3.5px", gap: 3, transform: showPanel ? "rotate(360deg)" : "rotate(0deg)", transition: "transform 400ms cubic-bezier(0.4, 0, 0, 1)" }}>
+                      {[0,1,2,3].map(function(i) {
+                        return <div key={i} style={{ width: 3.5, height: 3.5, borderRadius: 999, background: showPanel ? C.bg : C.textDim }} />;
+                      })}
+                    </div>
+                  </div>
+                )}
+                {/* Year nav pill */}
+                <div ref={yearNavRef} style={{
+                  display: "flex", alignItems: "center",
+                  background: C.panelBg, borderRadius: 999, height: isMobile ? 54 : 48,
+                  padding: "0",
+                  flex: isMobile ? 1 : "none",
+                }}>
+                  <div onClick={function() { setViewYear(viewYear - 1); }}
+                    onMouseEnter={function(e){ e.currentTarget.style.background = C.border; e.currentTarget.style.color = C.textDim; }}
+                    onMouseLeave={function(e){ e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = C.textDim; }}
+                    onMouseDown={function(e){ e.currentTarget.style.background = C.text; e.currentTarget.style.color = C.bg; }}
+                    onMouseUp={function(e){ e.currentTarget.style.background = C.border; e.currentTarget.style.color = C.textDim; }}
+                    style={{ width: isMobile ? 54 : 48, height: isMobile ? 54 : 48, borderRadius: 999, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", userSelect: "none", color: C.textDim }}>
+                    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <path d="M9 2L4 7L9 12" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
+                  </div>
+                  <span style={{ fontFamily: grotesk, fontWeight: 500, fontSize: 20, padding: "0 16px", flex: isMobile ? 1 : "none", textAlign: "center" }}>{viewYear}</span>
+                  <div onClick={function() { setViewYear(viewYear + 1); }}
+                    onMouseEnter={function(e){ e.currentTarget.style.background = C.border; e.currentTarget.style.color = C.textDim; }}
+                    onMouseLeave={function(e){ e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = C.textDim; }}
+                    onMouseDown={function(e){ e.currentTarget.style.background = C.text; e.currentTarget.style.color = C.bg; }}
+                    onMouseUp={function(e){ e.currentTarget.style.background = C.border; e.currentTarget.style.color = C.textDim; }}
+                    style={{ width: isMobile ? 54 : 48, height: isMobile ? 54 : 48, borderRadius: 999, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", userSelect: "none", color: C.textDim }}>
+                    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <path d="M5 2L10 7L5 12" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
+                  </div>
+                </div>
+
+              </div>
+            </div>
+          </div>
+          {/* Divider */}
+          <div style={{ height: "0.5px", background: C.border, margin: isMobile ? "16px 20px 0 20px" : "40px 40px 0 40px" }} />
+        </div>
+
+        {/* Calendar Grid */}
+        <div style={{ padding: isMobile ? "24px 20px 32px 20px" : "59px 40px 32px 40px" }} onClick={function(e) { e.stopPropagation(); if (showPanel) { setShowPanel(false); setPreviewDates([]); setPreviewCulDates([]); } }}>
+          <div style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))",
+            gap: "40px 48px",
+          }}>
+            {MONTHS.map(function(mName, mi) {
+              var dim = daysIn(viewYear, mi);
+              var fd = dayOfWeek(viewYear, mi, 1);
+              var mondayOffset = fd === 0 ? 6 : fd - 1;
+
+              // Build cells with prev/next month dates
+              var cells = [];
+              // Previous month filler dates
+              if (mondayOffset > 0) {
+                var prevDim = daysIn(viewYear, mi === 0 ? 11 : mi - 1);
+                for (var i = mondayOffset - 1; i >= 0; i--) {
+                  var prevDay = prevDim - i;
+                  cells.push(
+                    <div key={"p" + prevDay} style={{
+                      aspectRatio: "1", display: "flex", alignItems: "center", justifyContent: "center",
+                      fontSize: 12, fontFamily: work, fontWeight: 400, color: C.border, userSelect: "none",
+                    }}>{prevDay}</div>
+                  );
+                }
+              }
+              // Current month dates
+              for (var d = 1; d <= dim; d++) cells.push(renderDay(viewYear, mi, d));
+              // Next month filler dates
+              var totalCells = cells.length;
+              var rows = Math.ceil(totalCells / 7);
+              var remaining = rows * 7 - totalCells;
+              for (var n = 1; n <= remaining; n++) {
+                cells.push(
+                  <div key={"n" + n} style={{
+                    aspectRatio: "1", display: "flex", alignItems: "center", justifyContent: "center",
+                    fontSize: 12, fontFamily: work, fontWeight: 400, color: C.border, userSelect: "none",
+                  }}>{n}</div>
+                );
+              }
+
+              return (
+                <div key={mName}>
+                  <div style={{ fontFamily: work, fontSize: 12, fontWeight: 600, color: C.text, marginBottom: 16, textTransform: "uppercase", letterSpacing: 1 }}>
+                    {mName}
+                  </div>
+                  {/* Weekday headers */}
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 8, marginBottom: 4 }}>
+                    {["M","T","W","T","F","S","S"].map(function(w, wi) {
+                      return <div key={wi} style={{ display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontFamily: work, fontWeight: 500, color: C.textSec, textTransform: "uppercase", padding: "4px 0" }}>{w}</div>;
+                    })}
+                  </div>
+                  {/* Date cells */}
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 8 }}>
+                    {cells}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
+      {/* Panel - mobile: bottom sheet, desktop: side panel */}
+      <div style={isMobile ? {
+        position: "fixed", left: 0, right: 0, bottom: 0, zIndex: 800,
+        height: showPanel ? "50vh" : 0,
+        overflow: "hidden",
+        background: C.panelBg,
+        borderRadius: showPanel ? "20px 20px 0 0" : "0",
+        boxShadow: showPanel ? "0 -4px 24px rgba(0,0,0,0.08)" : "none",
+        transition: "height 400ms cubic-bezier(0.4, 0, 0, 1)",
+      } : {
+        width: showPanel ? 360 : 0, flexShrink: 0, height: "100vh",
+        overflow: "hidden",
+        transition: "width 400ms cubic-bezier(0.4, 0, 0, 1)",
+      }}>
+        <div onClick={function(e) { e.stopPropagation(); }} style={isMobile ? {
+          height: "100%",
+          background: C.panelBg,
+          display: "flex", flexDirection: "column",
+          boxSizing: "border-box",
+          position: "relative",
+        } : {
+          width: 360, height: "100vh",
+          background: C.panelBg,
+          display: "flex", flexDirection: "column",
+          boxSizing: "border-box",
+          position: "relative",
+        }}>
+          {/* Tab bar - mobile: sticky outside scroll container */}
+          {isMobile && (
+            <div ref={tabBarRef} style={{ display: "flex", gap: 20, position: "relative", borderBottom: "0.5px solid " + C.border, padding: "0 20px", background: C.panelBg, flexShrink: 0 }}>
+              {[
+                { key: "reco", label: "RECO" },
+                { key: "write", label: "WRITE" },
+                { key: "overview", label: "BALANCE" },
+                { key: "settings", label: "SETTINGS" },
+              ].map(function(tab) {
+                var isActive = panelTab === tab.key;
+                return (
+                  <div key={tab.key}
+                    ref={function(el) { tabItemRefs.current[tab.key] = el; }}
+                    onClick={function() { setPanelTab(tab.key); }}
+                    style={{
+                      fontFamily: work, fontSize: 11, textTransform: "uppercase",
+                      letterSpacing: 0.5, cursor: "pointer",
+                      fontWeight: isActive ? 600 : 400,
+                      color: isActive ? C.text : C.textSec,
+                      paddingBottom: 10, paddingTop: 16,
+                    }}>
+                    {tab.label}
+                  </div>
+                );
+              })}
+              <div style={{
+                position: "absolute", bottom: -0.5,
+                left: indicatorPos.left, width: indicatorPos.width,
+                height: 0.5, background: C.text,
+                transition: "left 200ms cubic-bezier(0.4, 0, 0, 1), width 200ms cubic-bezier(0.4, 0, 0, 1)",
+              }} />
+            </div>
+          )}
+
+          {/* Scrollable content area */}
+          <div style={{ flex: 1, overflowY: "auto", padding: isMobile
+            ? ("20px 20px " + (((panelTab === "reco" && previewDates.length > 0) || (panelTab === "settings" && settingsDirty) || (panelTab === "write" && writeSelectedGroups.length > 0)) ? "120px" : "20px") + " 20px")
+            : ("40px 24px " + (((panelTab === "reco" && previewDates.length > 0) || (panelTab === "settings" && settingsDirty) || (panelTab === "write" && writeSelectedGroups.length > 0)) ? "160px" : "24px") + " 24px")
+          }}>
+
+            {/* Panel Header - desktop only */}
+            {!isMobile && (
+              <div style={{ marginBottom: 48 }}>
+                <div style={{ fontFamily: goudy, fontStyle: "italic", fontSize: 54, lineHeight: 1, marginBottom: 8 }}>{userName}</div>
+                <div style={{ fontFamily: work, fontSize: 12, color: C.textSec, lineHeight: 1.5 }}>Management Level {editCL}</div>
+                <div style={{ fontFamily: work, fontSize: 12, color: C.textSec, lineHeight: 1.5 }}>{"Since " + new Date(startStr + "T12:00:00").toLocaleDateString("en-US", { month: "numeric", day: "numeric", year: "numeric" })}</div>
+              </div>
+            )}
+
+            {/* Tab bar - desktop only (mobile rendered above scroll container) */}
+            {!isMobile && <div ref={tabBarRef} style={{ display: "flex", gap: 20, marginBottom: 0, position: "relative", borderBottom: "0.5px solid " + C.border }}>
+              {[
+                { key: "reco", label: "RECO" },
+                { key: "write", label: "WRITE" },
+                { key: "overview", label: "BALANCE" },
+                { key: "settings", label: "SETTINGS" },
+              ].map(function(tab) {
+                var isActive = panelTab === tab.key;
+                return (
+                  <div key={tab.key}
+                    ref={function(el) { tabItemRefs.current[tab.key] = el; }}
+                    onClick={function() { setPanelTab(tab.key); }}
+                    style={{
+                      fontFamily: work, fontSize: 11, textTransform: "uppercase",
+                      letterSpacing: 0.5, cursor: "pointer",
+                      fontWeight: isActive ? 600 : 400,
+                      color: isActive ? C.text : C.textSec,
+                      paddingBottom: 10,
+                    }}>
+                    {tab.label}
+                  </div>
+                );
+              })}
+              {/* Sliding indicator */}
+              <div style={{
+                position: "absolute", bottom: -0.5,
+                left: indicatorPos.left, width: indicatorPos.width,
+                height: 0.5, background: C.text,
+                transition: "left 200ms cubic-bezier(0.4, 0, 0, 1), width 200ms cubic-bezier(0.4, 0, 0, 1)",
+              }} />
+            </div>}
+
+            {/* Overview Tab */}
+            {panelTab === "overview" ? (
+              <div style={{ paddingTop: isMobile ? 28 : 40 }}>
+                {/* Balance Section — first: no top border */}
+                <div style={{ marginBottom: 40 }}>
+                  <div style={{ fontFamily: work, fontSize: 11, textTransform: "uppercase", color: C.textSec, letterSpacing: 0.5, marginBottom: 20 }}>{"Balance FY" + viewYear}</div>
+                  <div style={{ display: "flex", gap: 24 }}>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontFamily: grotesk, fontWeight: 500, fontSize: 20, color: stats.balHrs < 0 ? C.neg : C.text }}>
+                        {(stats.balHrs / HOURS_PER_DAY).toFixed(1)}
+                      </div>
+                      <div style={{ fontFamily: work, fontSize: 12, fontWeight: 500, color: stats.balHrs < 0 ? C.neg : C.text, lineHeight: 1.5 }}>
+                        {"days / " + stats.balHrs + " hrs"}
+                      </div>
+                      <div style={{ fontFamily: work, fontSize: 12, color: C.textSec, lineHeight: 1.5 }}>
+                        {"as of today"}
+                      </div>
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontFamily: grotesk, fontWeight: 500, fontSize: 20, color: stats.eoy < 0 ? C.neg : C.text }}>
+                        {stats.eoyDays.toFixed(1)}
+                      </div>
+                      <div style={{ fontFamily: work, fontSize: 12, fontWeight: 500, color: stats.eoy < 0 ? C.neg : C.text, lineHeight: 1.5 }}>
+                        {"days / " + stats.eoy.toFixed(1) + " hrs"}
+                      </div>
+                      <div style={{ fontFamily: work, fontSize: 12, color: C.textSec, lineHeight: 1.5 }}>
+                        by Aug 31
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Accrual Rate Section */}
+                <div style={{ borderTop: "0.5px solid " + C.border, paddingTop: 8, marginBottom: 40 }}>
+                  <div style={{ fontFamily: work, fontSize: 11, textTransform: "uppercase", color: C.textSec, letterSpacing: 0.5, marginBottom: 20 }}>Accrual Rate</div>
+                  {(function() {
+                    var now = new Date(); now.setHours(0,0,0,0);
+                    var ms = new Date(startStr); ms.setFullYear(ms.getFullYear() + 5);
+                    var past5 = now >= ms;
+                    var rateA = past5 ? ACCRUAL_RATE_POST5 : ACCRUAL_RATE_PRE5;
+                    var labelA = past5 ? "after 5yr" : "before 5yr";
+                    var rateB = past5 ? ACCRUAL_RATE_POST10 : ACCRUAL_RATE_POST5;
+                    var labelB = past5 ? "after 10yr" : "after 5yr";
+                    return (
+                      <div style={{ display: "flex", gap: 24 }}>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontFamily: grotesk, fontWeight: 500, fontSize: 20 }}>{rateA}</div>
+                          <div style={{ fontFamily: work, fontSize: 12, color: C.text, lineHeight: 1.5 }}>hrs per pay</div>
+                          <div style={{ fontFamily: work, fontSize: 12, color: C.textSec, lineHeight: 1.5 }}>{labelA}</div>
+                        </div>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontFamily: grotesk, fontWeight: 500, fontSize: 20 }}>{rateB}</div>
+                          <div style={{ fontFamily: work, fontSize: 12, color: C.text, lineHeight: 1.5 }}>hrs per pay</div>
+                          <div style={{ fontFamily: work, fontSize: 12, color: C.textSec, lineHeight: 1.5 }}>{labelB}</div>
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </div>
+
+                {/* Used Vacation Days Section */}
+                <div style={{ borderTop: "0.5px solid " + C.border, paddingTop: 8, marginBottom: 40 }}>
+                  <div style={{ fontFamily: work, fontSize: 11, textTransform: "uppercase", color: C.textSec, letterSpacing: 0.5, marginBottom: 20 }}>Used Vacation Days</div>
+                  <div style={{ display: "flex", gap: 24 }}>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontFamily: grotesk, fontWeight: 500, fontSize: 20 }}>{stats.ptoUsed}</div>
+                      <div style={{ fontFamily: work, fontSize: 12, color: C.text, lineHeight: 1.5 }}>PTO days</div>
+                      <div style={{ fontFamily: work, fontSize: 12, color: C.textSec, lineHeight: 1.5 }}>FY {viewYear}</div>
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontFamily: grotesk, fontWeight: 500, fontSize: 20 }}>{stats.culUsed}</div>
+                      <div style={{ fontFamily: work, fontSize: 12, color: C.text, lineHeight: 1.5 }}>CUL days</div>
+                      <div style={{ fontFamily: work, fontSize: 12, color: C.textSec, lineHeight: 1.5 }}>{viewYear}</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ) : null}
+
+            {/* Reco Tab */}
+            {panelTab === "reco" ? (function() {
+              var availSizes = Object.keys(groupedOpps).map(function(k) { return parseInt(k); }).sort(function(a,b){return a-b;});
+              var minDays = availSizes.length > 0 ? availSizes[0] : 4;
+              var maxDays = availSizes.length > 0 ? availSizes[availSizes.length-1] : 20;
+              var effectiveDays = sliderDays === null ? minDays : Math.max(minDays, Math.min(maxDays, sliderDays));
+              var thumbPct = maxDays > minDays ? (effectiveDays - minDays) / (maxDays - minDays) : 0;
+              var currentOpps = groupedOpps[effectiveDays + " DAYS"] || [];
+              var thumbStyle = thumbPct <= 0.02 ? { left: 0 } : thumbPct >= 0.98 ? { right: 0 } : { left: (thumbPct * 100) + "%", transform: "translateX(-50%)" };
+              return (
+                <div style={{ paddingTop: isMobile ? 28 : 40 }}>
+                  {availSizes.length === 0 ? (
+                    <div style={{ background: C.surface, borderRadius: 16, padding: "20px 20px 24px" }}>
+                      <div style={{ fontFamily: work, fontSize: 12, color: C.textSec }}>No opportunities available with your current balance.</div>
+                    </div>
+                  ) : (
+                    <div>
+                      {/* Single container card: Days Off + slider */}
+                      <div style={{ background: C.surface, borderRadius: 12, padding: "14px 14px 20px", marginBottom: 8 }}>
+                        <div style={{ fontFamily: work, fontSize: 12, color: C.textSec, marginBottom: 16 }}>Days off</div>
+                        {/* Numbers row */}
+                        <div style={{ position: "relative", height: 26, marginBottom: 14 }}>
+                          {effectiveDays > minDays && (
+                            <div style={{ position: "absolute", left: 0, fontFamily: grotesk, fontWeight: 500, fontSize: 20, color: "#CECECE", lineHeight: 1 }}>{minDays}</div>
+                          )}
+                          {effectiveDays < maxDays && (
+                            <div style={{ position: "absolute", right: 0, fontFamily: grotesk, fontWeight: 500, fontSize: 20, color: "#CECECE", lineHeight: 1 }}>{maxDays}</div>
+                          )}
+                          <div style={Object.assign({ position: "absolute", fontFamily: grotesk, fontWeight: 500, fontSize: 20, color: C.text, lineHeight: 1 }, thumbStyle)}>{effectiveDays}</div>
+                        </div>
+                        {/* Slider */}
+                        <input type="range" className="reco-slider"
+                          min={minDays} max={maxDays} step={1} value={effectiveDays}
+                          onChange={function(e) { setSliderDays(parseInt(e.target.value)); }}
+                        />
+                      </div>
+                      {/* Opportunity cards — no section header */}
+                      {currentOpps.length > 0 ? (
+                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                          {currentOpps.map(function(o) {
+                            var isPreviewing = o.ptoDates.length > 0 && o.ptoDates.every(function(d) { return previewDates.indexOf(d) !== -1; });
+                            var sp = (o.startDate || o.date).split("-");
+                            var ep = (o.endDate || o.date).split("-");
+                            var sm = MONTHS[parseInt(sp[1])-1].slice(0, 3);
+                            var sd = parseInt(sp[2]);
+                            var em = MONTHS[parseInt(ep[1])-1].slice(0, 3);
+                            var ed = parseInt(ep[2]);
+                            var dateRange = sm + " " + sd + " – " + (sp[1] !== ep[1] ? em + " " : "") + ed;
+                            return (
+                              <div key={o.date + "-" + o.size}
+                                onClick={function() {
+                                  if (isPreviewing) { setPreviewDates([]); setPreviewCulDates([]); }
+                                  else {
+                                    var culCount = Math.min(Math.max(0, stats.culRemaining), o.ptoDates.length);
+                                    setPreviewCulDates(o.ptoDates.slice(0, culCount));
+                                    setPreviewDates(o.ptoDates);
+                                    var oppYear = parseInt(o.date.split("-")[0]); if (oppYear !== viewYear) setViewYear(oppYear);
+                                  }
+                                }}
+                                style={{ background: C.surface, borderRadius: 12, padding: 14, cursor: "pointer", border: isPreviewing ? "0.5px solid " + C.textSec : "0.5px solid transparent" }}>
+                                <div style={{ fontFamily: work, fontSize: 12, color: C.text, marginBottom: 3 }}>{dateRange}</div>
+                                {(function() {
+                                  var culCount = Math.min(Math.max(0, stats.culRemaining), o.ptoDates.length);
+                                  var ptoCount = o.ptoDates.length - culCount;
+                                  var parts = [];
+                                  if (ptoCount > 0) parts.push(ptoCount + " PTO" + (ptoCount > 1 ? "s" : ""));
+                                  if (culCount > 0) parts.push(culCount + " CUL" + (culCount > 1 ? "s" : ""));
+                                  return <div style={{ fontFamily: work, fontSize: 12, color: C.textSec }}>{parts.join(", ")}</div>;
+                                })()}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <div style={{ background: C.surface, borderRadius: 12, padding: 14 }}>
+                          <div style={{ fontFamily: work, fontSize: 12, color: C.textSec }}>No opportunities for {effectiveDays} days off.</div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })() : null}
+
+            {/* Settings Tab */}
+            {panelTab === "settings" ? (
+              <div style={{ paddingTop: isMobile ? 28 : 40 }}>
+                {/* INFO section — first: no top border */}
+                <div style={{ marginBottom: 40 }}>
+                  <div style={{ fontFamily: work, fontSize: 11, textTransform: "uppercase", color: C.textSec, letterSpacing: 0.5, marginBottom: 12 }}>Info</div>
+                  <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
+                    <div style={{ flex: 1, background: C.surface, borderRadius: 12, padding: 14, border: focusedField === "name" ? "0.5px solid " + C.textSec : "0.5px solid transparent" }}>
+                      <div style={{ fontFamily: work, fontSize: 11, color: C.textSec, marginBottom: 6 }}>Name</div>
+                      <input type="text" value={editName}
+                        onChange={function(e) { setEditName(e.target.value); setSettingsDirty(true); }}
+                        onFocus={function() { setFocusedField("name"); }}
+                        onBlur={function() { setFocusedField(null); }}
+                        style={{ border: "none", outline: "none", fontFamily: work, fontSize: 14, fontWeight: 500, width: "100%", background: "transparent", color: C.text }} />
+                    </div>
+                    <div style={{ flex: 1, background: C.surface, borderRadius: 12, padding: 14, border: focusedField === "cl" ? "0.5px solid " + C.textSec : "0.5px solid transparent" }}>
+                      <div style={{ fontFamily: work, fontSize: 11, color: C.textSec, marginBottom: 6 }}>Management Level</div>
+                      <input type="text" value={editCL}
+                        onChange={function(e) { setEditCL(e.target.value); setSettingsDirty(true); }}
+                        onFocus={function() { setFocusedField("cl"); }}
+                        onBlur={function() { setFocusedField(null); }}
+                        style={{ border: "none", outline: "none", fontFamily: work, fontSize: 14, fontWeight: 500, width: "100%", background: "transparent", color: C.text }} />
+                    </div>
+                  </div>
+                  <div style={{ background: C.surface, borderRadius: 12, padding: 14, border: focusedField === "milestone" ? "0.5px solid " + C.textSec : "0.5px solid transparent" }}>
+                    <div style={{ fontFamily: work, fontSize: 11, color: C.textSec, marginBottom: 6 }}>Starting Date</div>
+                    <DateField value={editStart} isFocused={focusedField === "milestone"}
+                      onChange={function(v) { setEditStart(v); setSettingsDirty(true); }}
+                      onFocus={function() { setFocusedField("milestone"); }}
+                      onBlur={function() { setFocusedField(null); }} />
+                  </div>
+                </div>
+
+                {/* CURRENT BALANCE section */}
+                <div style={{ borderTop: "0.5px solid " + C.border, paddingTop: 8, marginBottom: 40 }}>
+                  <div style={{ fontFamily: work, fontSize: 11, textTransform: "uppercase", color: C.textSec, letterSpacing: 0.5, marginBottom: 12 }}>Current Balance</div>
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <div style={{ flex: 1, background: C.surface, borderRadius: 12, padding: 14, border: focusedField === "bal" ? "0.5px solid " + C.textSec : "0.5px solid transparent" }}>
+                      <div style={{ fontFamily: work, fontSize: 11, color: C.textSec, marginBottom: 6 }}>Hours</div>
+                      <input type="number" value={editBal}
+                        onChange={function(e) { setEditBal(parseFloat(e.target.value) || 0); setSettingsDirty(true); }}
+                        onFocus={function() { setFocusedField("bal"); }}
+                        onBlur={function() { setFocusedField(null); }}
+                        style={{ border: "none", outline: "none", fontFamily: work, fontSize: 14, fontWeight: 500, width: "100%", background: "transparent", color: C.text }} />
+                    </div>
+                    <div style={{ flex: 1, background: C.surface, borderRadius: 12, padding: 14, border: focusedField === "balDate" ? "0.5px solid " + C.textSec : "0.5px solid transparent" }}>
+                      <div style={{ fontFamily: work, fontSize: 11, color: C.textSec, marginBottom: 6 }}>As of Date</div>
+                      <DateField value={editBalDate} isFocused={focusedField === "balDate"}
+                        onChange={function(v) { setEditBalDate(v); setSettingsDirty(true); }}
+                        onFocus={function() { setFocusedField("balDate"); }}
+                        onBlur={function() { setFocusedField(null); }} />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ) : null}
+
+            {/* Write Tab */}
+            {panelTab === "write" ? (
+              <div style={{ paddingTop: isMobile ? 28 : 40 }}>
+                <div style={{ fontFamily: work, fontSize: 11, textTransform: "uppercase", color: C.textSec, letterSpacing: 0.5, marginBottom: 16 }}>Planned Dates</div>
+                {writePlanGroups.length === 0 ? (
+                  <div style={{ background: C.surface, borderRadius: 12, padding: "16px 20px" }}>
+                    <div style={{ fontFamily: work, fontSize: 12, color: C.textSec }}>No planned dates yet.</div>
+                  </div>
+                ) : (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    {writePlanGroups.map(function(group, idx) {
+                      var isSelected = writeSelectedGroups.indexOf(idx) !== -1;
+                      var isApproved = !!approvedGroups[group[0]];
+                      var s = group[0].split("-"), e = group[group.length - 1].split("-");
+                      var sm = MONTHS[parseInt(s[1]) - 1].slice(0, 3);
+                      var em = MONTHS[parseInt(e[1]) - 1].slice(0, 3);
+                      var sd = parseInt(s[2]), ed = parseInt(e[2]);
+                      var dateRange = group.length === 1 ? (sm + " " + sd) : (sm + " " + sd + " \u2013 " + (s[1] !== e[1] ? em + " " : "") + ed);
+                      var ptoCount = group.filter(function(d) { return days[d] === "PLAN"; }).length;
+                      var culCount = group.filter(function(d) { return days[d] === "PLAN_CUL"; }).length;
+                      var ulCount = group.filter(function(d) { return days[d] === "PLAN_UNPAID"; }).length;
+                      var subtitle = [];
+                      if (ptoCount > 0) subtitle.push(ptoCount + (ptoCount === 1 ? " PTO" : " PTOs"));
+                      if (culCount > 0) subtitle.push(culCount + " CUL");
+                      if (ulCount > 0) subtitle.push(ulCount + " UL");
+                      return (
+                        <div key={idx}
+                          onClick={function(ev) {
+                            var groupYear = parseInt(group[0].split("-")[0]);
+                            if (ev.metaKey) {
+                              // Cmd+click: toggle approved
+                              setApprovedGroups(function(prev) {
+                                var u = Object.assign({}, prev);
+                                if (u[group[0]]) { delete u[group[0]]; } else {
+                                  u[group[0]] = true;
+                                  // deselect if approving
+                                  setWriteSelectedGroups(function(p) { return p.filter(function(i) { return i !== idx; }); });
+                                }
+                                return u;
+                              });
+                              return;
+                            }
+                            if (isApproved) return;
+                            setWriteSelectedGroups(function(prev) {
+                              return prev.indexOf(idx) !== -1 ? prev.filter(function(i) { return i !== idx; }) : prev.concat([idx]);
+                            });
+                            if (groupYear !== viewYear) setViewYear(groupYear);
+                            setTimeout(function() {
+                              var el = document.querySelector('[data-date="' + group[0] + '"]');
+                              if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+                            }, groupYear !== viewYear ? 50 : 0);
+                          }}
+                          style={{
+                            background: isApproved ? "#ECF4D6" : C.surface,
+                            borderRadius: 12, padding: "14px 16px",
+                            display: "flex", alignItems: "center", justifyContent: "space-between",
+                            cursor: isApproved ? "default" : "pointer",
+                            border: isSelected ? "0.5px solid " + C.textSec : "0.5px solid transparent",
+                          }}>
+                          <div>
+                            <div style={{ fontFamily: work, fontSize: 14, fontWeight: 500, color: C.text, marginBottom: 2 }}>{dateRange}</div>
+                            <div style={{ fontFamily: work, fontSize: 12, color: C.textSec }}>{subtitle.join(", ")}</div>
+                          </div>
+                          <div style={{
+                            width: 24, height: 24, borderRadius: 999, flexShrink: 0,
+                            border: (isSelected || isApproved) ? "none" : "1.5px solid " + C.border,
+                            background: isApproved ? "#D4F773" : (isSelected ? C.text : "transparent"),
+                            display: "flex", alignItems: "center", justifyContent: "center",
+                          }}>
+                            {(isSelected || isApproved) ? (
+                              <svg width="11" height="8" viewBox="0 0 11 8" fill="none">
+                                <path d="M1 4L4 7L10 1" stroke={isApproved ? "#84B400" : "white"} strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"/>
+                              </svg>
+                            ) : null}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {writeSelectedGroups.length > 0 && writePlanGroups.length > 0 ? (
+                  <div style={{ marginTop: 40 }}>
+                    <div style={{ height: "0.5px", background: C.border, marginBottom: 8 }} />
+                    <div style={{ fontFamily: work, fontSize: 11, textTransform: "uppercase", color: C.textSec, letterSpacing: 0.5, marginBottom: 16 }}>Text</div>
+                    <div style={{ background: C.surface, borderRadius: 12, padding: "16px 20px" }}>
+                      {generateEmailText().split("\n").map(function(line, i) {
+                        var isYearLine = /^\d{4}$/.test(line);
+                        var isDateLine = !isYearLine && writeSelectedGroups.some(function(idx) {
+                          return getGroupSubRunLines(writePlanGroups[idx]).indexOf(line) !== -1;
+                        });
+                        return (
+                          <div key={i} style={{
+                            fontFamily: work, fontSize: 13, lineHeight: 1.8,
+                            color: isYearLine ? C.textSec : C.text,
+                            fontWeight: isDateLine ? 600 : 400,
+                            minHeight: line === "" ? "1em" : undefined,
+                          }}>{line || "\u00a0"}</div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+
+          </div>{/* end scrollable content */}
+
+          {/* Sticky CTA footer — shown for Reco (when previewing), Settings (when dirty), and Write (when groups selected) */}
+          {(panelTab === "reco" && previewDates.length > 0) || (panelTab === "settings" && settingsDirty) || (panelTab === "write" && writeSelectedGroups.length > 0 && writePlanGroups.length > 0) ? (
+            <div style={{
+              position: "absolute", bottom: 0, left: 0, right: 0,
+              background: "linear-gradient(to bottom, rgba(248,248,248,0) 0%, rgba(248,248,248,0.85) 45%, " + C.panelBg + " 65%)",
+              padding: isMobile ? "60px 20px 20px 20px" : "80px 24px 24px 24px",
+            }}>
+              {panelTab === "write" ? (
+                <button
+                  onClick={function() {
+                    navigator.clipboard.writeText(generateEmailText()).then(function() { notify("Copied!"); });
+                  }}
+                  style={{
+                    width: "100%", height: 48, borderRadius: 999,
+                    background: C.text, border: "none",
+                    fontFamily: work, fontSize: 13, fontWeight: 600, color: C.bg, cursor: "pointer",
+                    textTransform: "uppercase", letterSpacing: 0.5,
+                  }}>
+                  Copy
+                </button>
+              ) : (
+                <div style={{ display: "flex", gap: 10 }}>
+                  {/* Cancel button */}
+                  <button
+                    onClick={function() {
+                      if (panelTab === "reco") {
+                        setPreviewDates([]); setPreviewCulDates([]);
+                      } else {
+                        setEditName(userName);
+                        setEditBal(bal);
+                        setEditBalDate(balDate);
+                        setEditStart(startStr);
+                        setSettingsDirty(false);
+                      }
+                    }}
+                    style={{
+                      flex: 1, height: 48, borderRadius: 999,
+                      background: C.surface, border: "1px solid " + C.border,
+                      fontFamily: work, fontSize: 13, fontWeight: 600, color: C.text, cursor: "pointer",
+                      textTransform: "uppercase", letterSpacing: 0.5,
+                    }}>
+                    Cancel
+                  </button>
+                  {/* Primary action button */}
+                  <button
+                    onClick={function() {
+                      if (panelTab === "reco") {
+                        pushHistory();
+                        var u = Object.assign({}, days);
+                        previewDates.forEach(function(k) {
+                          u[k] = previewCulDates.indexOf(k) !== -1 ? "PLAN_CUL" : "PLAN";
+                        });
+                        setDays(u);
+                        setPreviewDates([]); setPreviewCulDates([]);
+                        notify("Plan applied");
+                      } else {
+                        setUserName(editName);
+                        setBal(editBal);
+                        setBalDate(editBalDate);
+                        setStartStr(editStart);
+                        setSettingsDirty(false);
+                      }
+                    }}
+                    style={{
+                      flex: 1, height: 48, borderRadius: 999,
+                      background: C.text, border: "none",
+                      fontFamily: work, fontSize: 13, fontWeight: 600, color: C.bg, cursor: "pointer",
+                      textTransform: "uppercase", letterSpacing: 0.5,
+                    }}>
+                    {panelTab === "reco" ? "Apply" : "Update"}
+                  </button>
+                </div>
+              )}
+            </div>
+          ) : null}
+        </div>
+      </div>
+
+      <style>{"@import url('https://fonts.googleapis.com/css2?family=Sorts+Mill+Goudy:ital@1&family=Space+Grotesk:wght@400;500;600;700&family=Space+Mono:wght@400;700&family=Work+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap');\
+        * { box-sizing: border-box; }\
+        button:hover { opacity: 0.85; }\
+        *::-webkit-scrollbar { display: none; }\
+        * { -ms-overflow-style: none; scrollbar-width: none; }\
+        @keyframes digitWidthExit {\
+          from { max-width: 2ch; opacity: 1; }\
+          to   { max-width: 0; opacity: 0; }\
+        }\
+        @keyframes dayCellPop {\
+          0%   { transform: scale(0.9); }\
+          70%  { transform: scale(1.2); }\
+          100% { transform: scale(1); }\
+        }\
+        @keyframes popupBounce {\
+          0%   { opacity: 0; transform: translateX(-50%) scale(0.9); }\
+          100% { opacity: 1; transform: translateX(-50%) scale(1); }\
+        }\
+@keyframes toastIn {\
+          0%   { opacity: 0; transform: translateX(-50%) translateY(12px); }\
+          100% { opacity: 1; transform: translateX(-50%) translateY(0); }\
+        }\
+        @keyframes toastOut {\
+          0%   { opacity: 1; transform: translateX(-50%) translateY(0); }\
+          100% { opacity: 0; transform: translateX(-50%) translateY(12px); }\
+        }\
+        input[type='range'].reco-slider { -webkit-appearance: none; appearance: none; width: 100%; height: 1px; background: #E3E3E3; border-radius: 1px; outline: none; cursor: pointer; margin: 0; display: block; }\
+        input[type='range'].reco-slider::-webkit-slider-thumb { -webkit-appearance: none; width: 18px; height: 18px; border-radius: 50%; background: white; border: 1px solid #E3E3E3; box-shadow: 0 1px 4px rgba(0,0,0,0.12); cursor: grab; }\
+        input[type='range'].reco-slider::-webkit-slider-thumb:active { cursor: grabbing; }\
+        input[type='range'].reco-slider::-moz-range-thumb { width: 18px; height: 18px; border-radius: 50%; background: white; border: 1px solid #E3E3E3; box-shadow: 0 1px 4px rgba(0,0,0,0.12); cursor: grab; border-box: border-box; }\
+      "}</style>
+    </div>
+  );
+}
