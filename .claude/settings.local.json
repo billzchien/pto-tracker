@@ -1,18 +1,4 @@
 {
-  "hooks": {
-    "PostToolUse": [
-      {
-        "matcher": "Write|Edit",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "cd \"/Users/billchien/Documents/PTO Tracker\" && git add -A && git diff --cached --quiet || (git commit -m \"auto-deploy: update app\" && git push) 2>/dev/null || true",
-            "statusMessage": "Deploying to ooo.billchien.net..."
-          }
-        ]
-      }
-    ]
-  },
   "permissions": {
     "allow": [
       "Bash(npm create:*)",
