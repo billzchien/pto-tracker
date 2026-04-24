@@ -328,6 +328,8 @@ export default function PTOTracker() {
   var [toastVisible, setToastVisible] = useState(false);
   var [showPanel, setShowPanel] = useState(false);
   var [panelTab, setPanelTab] = useState("reco");
+  var [sheetDragY, setSheetDragY] = useState(0);
+  var sheetDragStart = useRef(null);
   var [userName, setUserName] = useState("Bill");
   var [editName, setEditName] = useState("Bill");
   var [editCL, setEditCL] = useState("8");
