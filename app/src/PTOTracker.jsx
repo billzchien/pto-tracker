@@ -1380,6 +1380,7 @@ export default function PTOTracker() {
                 height: 0.5, background: C.text,
                 transition: "left 200ms cubic-bezier(0.4, 0, 0, 1), width 200ms cubic-bezier(0.4, 0, 0, 1)",
               }} />
+              </div>
             </div>
           )}
 
