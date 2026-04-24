@@ -1326,7 +1326,32 @@ export default function PTOTracker() {
         }}>
           {/* Tab bar - mobile: sticky outside scroll container */}
           {isMobile && (
-            <div ref={tabBarRef} style={{ display: "flex", gap: 20, position: "relative", borderBottom: "0.5px solid " + C.border, padding: "0 20px", background: C.panelBg, flexShrink: 0 }}>
+            <div
+              onTouchStart={function(e) {
+                sheetDragStart.current = e.touches[0].clientY;
+                setSheetDragY(0);
+              }}
+              onTouchMove={function(e) {
+                var dy = e.touches[0].clientY - sheetDragStart.current;
+                if (dy > 0) setSheetDragY(dy);
+              }}
+              onTouchEnd={function() {
+                if (sheetDragY > 80) {
+                  setSheetDragY(0);
+                  setShowPanel(false);
+                  setPreviewDates([]);
+                  setPreviewCulDates([]);
+                } else {
+                  setSheetDragY(0);
+                }
+                sheetDragStart.current = null;
+              }}
+              ref={tabBarRef} style={{ display: "flex", gap: 20, position: "relative", borderBottom: "0.5px solid " + C.border, background: C.panelBg, flexShrink: 0, flexDirection: "column", padding: "0" }}
+            >
+              <div style={{ display: "flex", justifyContent: "center", paddingTop: 10, paddingBottom: 4 }}>
+                <div style={{ width: 36, height: 4, borderRadius: 2, background: C.border }} />
+              </div>
+              <div style={{ display: "flex", gap: 20, padding: "0 20px", position: "relative" }}>
               {[
                 { key: "reco", label: "RECO" },
                 { key: "write", label: "WRITE" },
