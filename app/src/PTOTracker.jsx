@@ -1304,7 +1304,8 @@ export default function PTOTracker() {
         background: C.panelBg,
         borderRadius: showPanel ? "20px 20px 0 0" : "0",
         boxShadow: showPanel ? "0 -4px 24px rgba(0,0,0,0.08)" : "none",
-        transition: "height 400ms cubic-bezier(0.4, 0, 0, 1)",
+        transition: sheetDragY > 0 ? "none" : "height 400ms cubic-bezier(0.4, 0, 0, 1)",
+        transform: isMobile && sheetDragY > 0 ? "translateY(" + sheetDragY + "px)" : "none",
       } : {
         width: showPanel ? 360 : 0, flexShrink: 0, height: "100vh",
         overflow: "hidden",
