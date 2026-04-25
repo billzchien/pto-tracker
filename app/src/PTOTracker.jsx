@@ -713,6 +713,7 @@ function PTOTrackerApp() {
 
     // FY counters
     var ptoUsed = 0, ptoPlanned = 0, culUsed = 0, culPlanned = 0;
+    var culByYear = {};
     entries.forEach(function(entry) {
       var k = entry[0], t = entry[1];
       var d = new Date(k); var y = d.getFullYear();
@@ -721,6 +722,7 @@ function PTOTrackerApp() {
       if (t === "PLAN" && inFY) ptoPlanned++;
       if (t === "CUL" && y === viewYear) culUsed++;
       if (t === "PLAN_CUL" && y === viewYear) culPlanned++;
+      if (t === "CUL" || t === "PLAN_CUL") culByYear[y] = (culByYear[y] || 0) + 1;
     });
 
     // Auto-compute current balance: snapshot + accruals to today − days taken since snapshot
@@ -732,7 +734,7 @@ function PTOTrackerApp() {
     var takenSinceSnapshot = 0;
     entries.forEach(function(entry) {
       var k = entry[0], t = entry[1];
-      if (t === "PTO" || t === "CUL") {
+      if (t === "PTO") {
         var d = new Date(k);
         if (d > asOf && d <= today) takenSinceSnapshot++;
       }
@@ -830,6 +832,7 @@ function PTOTrackerApp() {
       ptoUsed: ptoUsed, ptoPlanned: ptoPlanned,
       culUsed: culUsed, culPlanned: culPlanned,
       culRemaining: CUL_DAYS_TOTAL - culUsed - culPlanned,
+      culByYear: culByYear,
       balHrs: currentBal, futAcc: futAcc, eoy: eoy,
       eoyDays: eoy / HOURS_PER_DAY, avail: avail,
       eocyDays: eocyDays,
@@ -1176,12 +1179,13 @@ function PTOTrackerApp() {
           } else {
             var clickedDate = new Date(year, month, day);
             var now = new Date(); now.setHours(0,0,0,0);
-            var isFuture = clickedDate > now;
-            var culExhausted = (stats.culUsed + stats.culPlanned) >= CUL_DAYS_TOTAL;
-            if (isFuture && culExhausted) {
-              // Skip popup — directly toggle planned PTO
-              toggle(key, "PLAN");
-              triggerPop(key);
+            var isPast = clickedDate < now;
+            var culExhausted = (stats.culByYear[year] || 0) >= CUL_DAYS_TOTAL;
+            if (culExhausted) {
+              // CUL cap reached for this year — assign PTO directly, no popup
+              var directType = isPast ? "PTO" : "PLAN";
+              toggle(key, directType);
+              if (!isPast) triggerPop(key);
             } else {
               // Show popup to choose PTO or CUL
               setActive(isAct ? null : key);
