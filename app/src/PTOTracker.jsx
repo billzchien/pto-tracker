@@ -1278,7 +1278,7 @@ function PTOTrackerApp() {
   var todayStr = new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 
   return (
-    <div style={{ display: "flex", fontFamily: work, color: C.text, background: C.bg, minHeight: "100vh", maxWidth: "100vw", overflow: "hidden", opacity: fadeIn ? 1 : 0, transition: "opacity 200ms cubic-bezier(0.4,0,0,1)" }}
+    <div style={{ display: "flex", fontFamily: work, color: C.text, background: C.bg, minHeight: "100vh", maxWidth: "100vw", overflow: "hidden", opacity: fadeIn ? 1 : 0, transition: "opacity 200ms cubic-bezier(0.4,0,0,1)", userSelect: "none" }}
       onClick={function() { setActive(null); }}
       onMouseMove={function(e) {
         setTooltip(function(curr) {
@@ -1933,7 +1933,7 @@ function PTOTrackerApp() {
                   <div style={{ marginTop: 40 }}>
                     <div style={{ height: "0.5px", background: C.border, marginBottom: 8 }} />
                     <div style={{ fontFamily: work, fontSize: 11, textTransform: "uppercase", color: C.textSec, letterSpacing: 0.5, marginBottom: 16 }}>Text</div>
-                    <div style={{ background: C.surface, borderRadius: 12, padding: "16px 20px" }}>
+                    <div style={{ background: C.surface, borderRadius: 12, padding: "16px 20px", userSelect: "text" }}>
                       {generateEmailText().split("\n").map(function(line, i) {
                         var isYearLine = /^\d{4}$/.test(line);
                         var isDateLine = !isYearLine && writeSelectedGroups.some(function(idx) {
