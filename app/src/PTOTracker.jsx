@@ -1043,7 +1043,7 @@ function PTOTrackerApp() {
       }
       getGroupSubRunLines(group).forEach(function(line) { dateLines.push(line); });
     });
-    return "Hello!\n\nPlanning the following PTOs:\n" + dateLines.join("\n") + "\n\nBest,\n" + userName;
+    return "Hello!\n\nPlanning the following days off:\n" + dateLines.join("\n") + "\n\nBest,\n" + userName;
   }
 
   function handleDateOption(key, option) {
@@ -1536,7 +1536,7 @@ function PTOTrackerApp() {
               <div style={{ display: "flex", gap: 20, padding: "0 20px", position: "relative" }}>
               {[
                 { key: "reco", label: "RECO" },
-                { key: "write", label: "WRITE" },
+                { key: "write", label: "DRAFT" },
                 { key: "overview", label: "BALANCE" },
                 { key: "settings", label: "SETTINGS" },
               ].map(function(tab) {
@@ -1585,7 +1585,7 @@ function PTOTrackerApp() {
             {!isMobile && <div ref={tabBarRef} style={{ display: "flex", gap: 20, marginBottom: 0, position: "relative", borderBottom: "0.5px solid " + C.border }}>
               {[
                 { key: "reco", label: "RECO" },
-                { key: "write", label: "WRITE" },
+                { key: "write", label: "DRAFT" },
                 { key: "overview", label: "BALANCE" },
                 { key: "settings", label: "SETTINGS" },
               ].map(function(tab) {
@@ -1859,21 +1859,35 @@ function PTOTrackerApp() {
                       if (ptoCount > 0) subtitle.push(ptoCount + (ptoCount === 1 ? " PTO" : " PTOs"));
                       if (culCount > 0) subtitle.push(culCount + " CUL");
                       if (ulCount > 0) subtitle.push(ulCount + " UL");
+                      var longPressTimer = { id: null };
+                      function toggleApproved() {
+                        setApprovedGroups(function(prev) {
+                          var u = Object.assign({}, prev);
+                          if (u[group[0]]) { delete u[group[0]]; } else {
+                            u[group[0]] = true;
+                            setWriteSelectedGroups(function(p) { return p.filter(function(i) { return i !== idx; }); });
+                          }
+                          return u;
+                        });
+                      }
                       return (
                         <div key={idx}
+                          onTouchStart={function() {
+                            longPressTimer.id = setTimeout(function() {
+                              longPressTimer.id = null;
+                              toggleApproved();
+                            }, 500);
+                          }}
+                          onTouchEnd={function() {
+                            if (longPressTimer.id) { clearTimeout(longPressTimer.id); longPressTimer.id = null; }
+                          }}
+                          onTouchMove={function() {
+                            if (longPressTimer.id) { clearTimeout(longPressTimer.id); longPressTimer.id = null; }
+                          }}
                           onClick={function(ev) {
                             var groupYear = parseInt(group[0].split("-")[0]);
                             if (ev.metaKey) {
-                              // Cmd+click: toggle approved
-                              setApprovedGroups(function(prev) {
-                                var u = Object.assign({}, prev);
-                                if (u[group[0]]) { delete u[group[0]]; } else {
-                                  u[group[0]] = true;
-                                  // deselect if approving
-                                  setWriteSelectedGroups(function(p) { return p.filter(function(i) { return i !== idx; }); });
-                                }
-                                return u;
-                              });
+                              toggleApproved();
                               return;
                             }
                             if (isApproved) return;
