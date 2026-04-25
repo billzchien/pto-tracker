@@ -312,10 +312,205 @@ function AnimatedNumber({ value, style }) {
   );
 }
 
+// Started as soon as the correct code is entered, so data is ready by the time the
+// animation finishes and PTOTrackerApp mounts.
+var dataPromise = null;
+
+async function prefetchData() {
+  var result = { days: null, settings: null };
+  try {
+    var res = await supabase.from('pto_days').select('*');
+    if (!res.error && res.data && res.data.length > 0) {
+      var loaded_days = {};
+      res.data.forEach(function(row) { loaded_days[row.date] = row.type; });
+      result.days = loaded_days;
+    } else {
+      var r = localStorage.getItem(STORAGE_KEY);
+      if (r) {
+        var p = JSON.parse(r);
+        if (p.days && Object.keys(p.days).length > 0) {
+          var rows = Object.keys(p.days).map(function(date) { return { date: date, type: p.days[date] }; });
+          await supabase.from('pto_days').upsert(rows);
+          result.days = p.days;
+        }
+      }
+    }
+    var r2 = localStorage.getItem(STORAGE_KEY);
+    if (r2) {
+      var p2 = JSON.parse(r2);
+      result.settings = p2;
+    }
+    var storedName = localStorage.getItem("bill-pto-userName");
+    if (storedName) result.storedName = storedName;
+  } catch(e) {}
+  return result;
+}
+
+function LockScreen({ onUnlock }) {
+  var [digits, setDigits] = useState([]);
+  var [phase, setPhase] = useState('idle'); // 'idle' | 'collapsing' | 'loading' | 'shrinking'
+  var inputRef = useRef(null);
+
+  useEffect(function() {
+    if (inputRef.current) inputRef.current.focus();
+  }, []);
+
+  var isComplete = digits.length === 4;
+  var hasAny = digits.length > 0;
+  var activeIndex = digits.length < 4 ? digits.length : -1;
+  var isAnimating = phase !== 'idle';
+
+  function focusInput() {
+    if (inputRef.current && !isAnimating) inputRef.current.focus();
+  }
+
+  function handleChange(e) {
+    if (isAnimating) return;
+    var raw = e.target.value.replace(/\D/g, '');
+    var val = raw.slice(0, 4);
+    setDigits(val.split('').filter(Boolean));
+    if (raw.length > 4) e.target.value = val;
+  }
+
+  function handleKeyDown(e) {
+    if (e.key === 'Enter' && isComplete && !isAnimating) handleSubmit();
+  }
+
+  function handleSubmit() {
+    if (!isComplete || isAnimating) return;
+    if (digits.join('') === '1960') {
+      dataPromise = prefetchData();
+      setPhase('collapsing');
+      setTimeout(function() {
+        setPhase('loading');
+        setTimeout(function() {
+          setPhase('shrinking');
+          setTimeout(onUnlock, 400);
+        }, 1500);
+      }, 600);
+    } else {
+      setDigits([]);
+      if (inputRef.current) { inputRef.current.value = ''; inputRef.current.focus(); }
+    }
+  }
+
+  // Row is 5×48 + 4×8 = 272px wide; center at x=136.
+  // Each input circle i has center at 24 + i*56; arrow center at 248.
+  // translateX needed to reach center: 136 - center.
+  var collapseX = [112, 56, 0, -56]; // for input circles 0-3
+  var arrowCollapseX = -112;          // for the arrow button
+
+  return (
+    <div onClick={focusInput} style={{
+      position: 'fixed', inset: 0, background: C.bg, zIndex: 9999,
+      display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+    }}>
+      <style>{'@keyframes lockSpin { to { transform: rotate(360deg); } }'}</style>
+
+      {/* Hidden input captures keyboard; pointerEvents:none keeps it invisible */}
+      <input ref={inputRef} type="tel" inputMode="numeric" pattern="[0-9]*" maxLength={4}
+        onChange={handleChange} onKeyDown={handleKeyDown}
+        style={{
+          position: 'absolute', opacity: 0, caretColor: 'transparent',
+          width: 1, height: 1, top: 0, left: 0, pointerEvents: 'none',
+        }} />
+
+      {/* ENTER CODE label */}
+      <div style={{
+        marginBottom: 40,
+        fontFamily: work, fontSize: 12, fontWeight: 600,
+        textTransform: 'uppercase', letterSpacing: 1, color: C.text,
+        opacity: isAnimating ? 0 : 1,
+        transition: phase === 'collapsing' ? 'opacity 250ms cubic-bezier(0.4,0,0,1)' : 'none',
+        userSelect: 'none',
+      }}>ENTER CODE</div>
+
+      {/* Five circles */}
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+        {[0, 1, 2, 3].map(function(i) {
+          return (
+            <div key={i} onClick={function(e) { e.stopPropagation(); focusInput(); }} style={{
+              width: 48, height: 48, borderRadius: 999,
+              background: C.panelBg,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              flexShrink: 0,
+              transform: isAnimating ? 'translateX(' + collapseX[i] + 'px)' : 'translateX(0)',
+              opacity: isAnimating ? 0 : 1,
+              transition: isAnimating
+                ? 'transform 500ms cubic-bezier(0.4,0,0,1), opacity 350ms cubic-bezier(0.4,0,0,1)'
+                : 'none',
+            }}>
+              {digits[i] && (
+                <span style={{ fontFamily: grotesk, fontWeight: 500, fontSize: 20, color: C.text, userSelect: 'none' }}>
+                  {digits[i]}
+                </span>
+              )}
+            </div>
+          );
+        })}
+
+        {/* Arrow / confirm button */}
+        <div onClick={function(e) { e.stopPropagation(); handleSubmit(); }} style={{
+          width: 48, height: 48, borderRadius: 999,
+          background: (isAnimating || hasAny) ? C.pto : C.panelBg,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          cursor: isComplete ? 'pointer' : 'default',
+          flexShrink: 0,
+          transform: phase === 'shrinking'
+            ? 'translateX(' + arrowCollapseX + 'px) scale(0)'
+            : (phase === 'collapsing' || phase === 'loading')
+              ? 'translateX(' + arrowCollapseX + 'px) scale(1)'
+              : 'translateX(0) scale(1)',
+          transition: phase === 'shrinking'
+            ? 'transform 350ms cubic-bezier(0.4,0,0,1)'
+            : 'background 150ms cubic-bezier(0.4,0,0,1), transform 500ms cubic-bezier(0.4,0,0,1)',
+        }}>
+          {(phase === 'loading' || phase === 'shrinking') ? (
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none"
+              style={{ animation: 'lockSpin 700ms linear infinite' }}>
+              <circle cx="8" cy="8" r="5.5" stroke="rgba(0,0,0,0.15)" strokeWidth="1"/>
+              <path d="M8 2.5 A5.5 5.5 0 0 1 13.5 8" stroke={C.text} strokeWidth="1" strokeLinecap="round"/>
+            </svg>
+          ) : (
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+              <path d="M5 2L10 7L5 12" stroke={C.textDim} strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function PTOTracker() {
+  var alreadyUnlocked = sessionStorage.getItem('pto-unlocked') === '1';
+  var [unlocked, setUnlocked] = useState(alreadyUnlocked);
+
+  if (!unlocked) {
+    return (
+      <LockScreen onUnlock={function() {
+        sessionStorage.setItem('pto-unlocked', '1');
+        setUnlocked(true);
+      }} />
+    );
+  }
+  return <PTOTrackerApp />;
+}
+
+function PTOTrackerApp() {
+  var [fadeIn, setFadeIn] = useState(false);
   var [days, setDays] = useState(DEFAULT_DATA);
   var [viewYear, setViewYear] = useState(2026);
   var [loaded, setLoaded] = useState(false);
+
+  // Fade in once data is loaded: double-RAF ensures the browser paints opacity:0 first
+  useEffect(function() {
+    if (!loaded) return;
+    var id = requestAnimationFrame(function() {
+      requestAnimationFrame(function() { setFadeIn(true); });
+    });
+    return function() { cancelAnimationFrame(id); };
+  }, [loaded]);
   var [active, setActive] = useState(null);
   var [showProj, setShowProj] = useState(false);
   var [showOpps, setShowOpps] = useState(false);
@@ -402,38 +597,22 @@ export default function PTOTracker() {
   useEffect(function() {
     async function loadData() {
       try {
-        // Load days from Supabase
-        var res = await supabase.from('pto_days').select('*');
-        if (!res.error && res.data && res.data.length > 0) {
-          var loaded_days = {};
-          res.data.forEach(function(row) { loaded_days[row.date] = row.type; });
-          prevDaysRef.current = loaded_days;
-          setDays(loaded_days);
-        } else {
-          // First time: migrate existing localStorage days to Supabase
-          var r = localStorage.getItem(STORAGE_KEY);
-          if (r) {
-            var p = JSON.parse(r);
-            if (p.days && Object.keys(p.days).length > 0) {
-              var rows = Object.keys(p.days).map(function(date) { return { date: date, type: p.days[date] }; });
-              await supabase.from('pto_days').upsert(rows);
-              prevDaysRef.current = p.days;
-              setDays(p.days);
-            }
-          }
+        // Use prefetched data if available (started during lock screen animation)
+        var result = dataPromise ? await dataPromise : await prefetchData();
+        dataPromise = null;
+        if (result.days) {
+          prevDaysRef.current = result.days;
+          setDays(result.days);
         }
-        // Settings stay in localStorage
-        var r2 = localStorage.getItem(STORAGE_KEY);
-        if (r2) {
-          var p2 = JSON.parse(r2);
+        if (result.settings) {
+          var p2 = result.settings;
           if (p2.bal !== undefined) setBal(p2.bal);
           if (p2.balDate) setBalDate(p2.balDate);
           if (p2.userName) setUserName(p2.userName);
           if (p2.editCL) setEditCL(p2.editCL);
           if (p2.approvedGroups) setApprovedGroups(p2.approvedGroups);
         }
-        var storedName = localStorage.getItem("bill-pto-userName");
-        if (storedName) setUserName(storedName);
+        if (result.storedName) setUserName(result.storedName);
       } catch(e) {}
       setLoaded(true);
     }
@@ -1091,12 +1270,11 @@ export default function PTOTracker() {
     );
   }
 
-  if (!loaded) return <div style={{ padding: 40, fontFamily: work, color: C.textSec, textAlign: "center" }}>Loading...</div>;
 
   var todayStr = new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 
   return (
-    <div style={{ display: "flex", fontFamily: work, color: C.text, background: C.bg, minHeight: "100vh", maxWidth: "100vw", overflow: "hidden" }}
+    <div style={{ display: "flex", fontFamily: work, color: C.text, background: C.bg, minHeight: "100vh", maxWidth: "100vw", overflow: "hidden", opacity: fadeIn ? 1 : 0, transition: "opacity 200ms cubic-bezier(0.4,0,0,1)" }}
       onClick={function() { setActive(null); }}
       onMouseMove={function(e) {
         setTooltip(function(curr) {
