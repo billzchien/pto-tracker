@@ -516,6 +516,7 @@ function PTOTrackerApp() {
   var [showOpps, setShowOpps] = useState(false);
   var [previewDates, setPreviewDates] = useState([]);
   var [previewCulDates, setPreviewCulDates] = useState([]);
+  var [previewExistingDates, setPreviewExistingDates] = useState([]);
   var [showSettings, setShowSettings] = useState(false);
   var [bal, setBal] = useState(-12);
   var [balDate, setBalDate] = useState("2026-04-01");
@@ -934,26 +935,62 @@ function PTOTrackerApp() {
   // Group opportunities by break size; hide any whose PTO dates are all already marked
   // or that require more PTO than the user has available
   var groupedOpps = useMemo(function() {
+    var MS = 86400000;
+    function dk2Date(dk) { var p = dk.split("-").map(Number); return new Date(p[0], p[1]-1, p[2]); }
+    function date2dk(d) { return d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0") + "-" + String(d.getDate()).padStart(2,"0"); }
+    function isOffDay(dk) { // weekend, holiday, or already-planned/used leave
+      var d = dk2Date(dk); var w = d.getDay();
+      if (w === 0 || w === 6) return true;
+      if (dk in ALL_HOLIDAYS) return true;
+      var t = days[dk];
+      return t === "PTO" || t === "CUL" || t === "PLAN" || t === "PLAN_CUL" || t === "UNPAID" || t === "PLAN_UNPAID";
+    }
+
     var groups = {};
     opps.filter(function(o) {
       if (new Date(o.date) < new Date()) return false;
-      // Only show if the holiday or any PTO date falls in viewYear (allows cross-year Jan 1 opportunities)
       var holYear = parseInt(o.date.split("-")[0]);
       var touchesViewYear = holYear === viewYear || o.ptoDates.some(function(d) { return parseInt(d.split("-")[0]) === viewYear; });
       if (!touchesViewYear) return false;
-      // Count how many PTO dates still need to be planned
       var unplanned = o.ptoDates.filter(function(d) {
         return days[d] !== "PTO" && days[d] !== "CUL" && days[d] !== "PLAN" && days[d] !== "PLAN_CUL";
       }).length;
-      // Hide if balance can't cover the remaining days needed
       if (unplanned > Math.max(0, stats.avail)) return false;
-      // Hide if every PTO date is already covered
-      var allMarked = unplanned === 0;
-      return !allMarked;
+      return unplanned !== 0;
     }).forEach(function(o) {
-      var key = o.size + " DAYS";
+      // Recalculate effective break size by extending the span through adjacent off-days
+      var minD = dk2Date(o.startDate);
+      var maxD = dk2Date(o.endDate);
+      var safety = 0;
+      while (safety++ < 60) {
+        var prev = new Date(minD.getTime() - MS);
+        if (isOffDay(date2dk(prev))) { minD = prev; } else { break; }
+      }
+      safety = 0;
+      while (safety++ < 60) {
+        var next = new Date(maxD.getTime() + MS);
+        if (isOffDay(date2dk(next))) { maxD = next; } else { break; }
+      }
+      var effectiveSize = Math.round((maxD.getTime() - minD.getTime()) / MS) + 1;
+
+      // Collect already-planned days within the effective span that are NOT in ptoDates.
+      // Days in ptoDates are already counted in the PTO total — including them here would double-count.
+      var alreadyPlanned = [];
+      var scanD = new Date(minD.getTime());
+      while (scanD.getTime() <= maxD.getTime()) {
+        var scanKey = date2dk(scanD);
+        if ((days[scanKey] === "PLAN" || days[scanKey] === "PLAN_CUL") && o.ptoDates.indexOf(scanKey) === -1)
+          alreadyPlanned.push(scanKey);
+        scanD = new Date(scanD.getTime() + MS);
+      }
+
+      var key = effectiveSize + " DAYS";
       if (!groups[key]) groups[key] = [];
-      groups[key].push(o);
+      groups[key].push(Object.assign({}, o, {
+        effectiveStart: date2dk(minD),
+        effectiveEnd: date2dk(maxD),
+        alreadyPlannedInSpan: alreadyPlanned,
+      }));
     });
     return groups;
   }, [opps, days, viewYear, stats]);
@@ -1212,6 +1249,7 @@ function PTOTrackerApp() {
           border: type === "PLAN_UNPAID" ? "2px dashed " + C.pto
                 : type === "UNPAID" ? "2px dashed " + C.border
                 : highlightedDates.indexOf(key) !== -1 ? "1px solid #84B400"
+                : previewExistingDates.indexOf(key) !== -1 ? "1px solid #84B400"
                 : "none",
           boxShadow: isAct ? "0 0 0 0.5px " + C.border : "none",
           transition: "background 0.15s, box-shadow 0.15s",
@@ -1415,10 +1453,10 @@ function PTOTrackerApp() {
         </div>
 
         {/* Calendar Grid */}
-        <div style={{ padding: isMobile ? "24px 20px 32px 20px" : "59px 40px 32px 40px" }} onClick={function(e) { e.stopPropagation(); if (showPanel) { setShowPanel(false); setPreviewDates([]); setPreviewCulDates([]); } }}>
+        <div style={{ padding: isMobile ? "24px 20px 32px 20px" : "59px 40px 32px 40px" }} onClick={function(e) { e.stopPropagation(); if (showPanel) { setShowPanel(false); setPreviewDates([]); setPreviewCulDates([]); setPreviewExistingDates([]); } }}>
           <div style={{
             display: "grid",
-            gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))",
+            gridTemplateColumns: "repeat(auto-fill, minmax(max(260px, calc(25% - 36px)), 1fr))",
             gap: "40px 48px",
           }}>
             {MONTHS.map(function(mName, mi) {
@@ -1523,6 +1561,7 @@ function PTOTrackerApp() {
                   setShowPanel(false);
                   setPreviewDates([]);
                   setPreviewCulDates([]);
+                  setPreviewExistingDates([]);
                 } else {
                   setSheetDragY(0);
                 }
@@ -1535,7 +1574,7 @@ function PTOTrackerApp() {
               </div>
               <div style={{ display: "flex", gap: 20, padding: "0 20px", position: "relative" }}>
               {[
-                { key: "reco", label: "RECO" },
+                { key: "reco", label: "PLAN" },
                 { key: "write", label: "DRAFT" },
                 { key: "overview", label: "BALANCE" },
                 { key: "settings", label: "SETTINGS" },
@@ -1584,7 +1623,7 @@ function PTOTrackerApp() {
             {/* Tab bar - desktop only (mobile rendered above scroll container) */}
             {!isMobile && <div ref={tabBarRef} style={{ display: "flex", gap: 20, marginBottom: 0, position: "relative", borderBottom: "0.5px solid " + C.border }}>
               {[
-                { key: "reco", label: "RECO" },
+                { key: "reco", label: "PLAN" },
                 { key: "write", label: "DRAFT" },
                 { key: "overview", label: "BALANCE" },
                 { key: "settings", label: "SETTINGS" },
@@ -1701,7 +1740,7 @@ function PTOTrackerApp() {
               var effectiveDays = sliderDays === null ? minDays : Math.max(minDays, Math.min(maxDays, sliderDays));
               var thumbPct = maxDays > minDays ? (effectiveDays - minDays) / (maxDays - minDays) : 0;
               var currentOpps = groupedOpps[effectiveDays + " DAYS"] || [];
-              var thumbStyle = thumbPct <= 0.02 ? { left: 0 } : thumbPct >= 0.98 ? { right: 0 } : { left: (thumbPct * 100) + "%", transform: "translateX(-50%)" };
+              var thumbStyle = { left: (thumbPct * 100) + "%", transform: "translateX(" + (-thumbPct * 100) + "%)" };
               return (
                 <div style={{ paddingTop: isMobile ? 28 : 40 }}>
                   {availSizes.length === 0 ? (
@@ -1734,8 +1773,8 @@ function PTOTrackerApp() {
                         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
                           {currentOpps.map(function(o) {
                             var isPreviewing = o.ptoDates.length > 0 && o.ptoDates.every(function(d) { return previewDates.indexOf(d) !== -1; });
-                            var sp = (o.startDate || o.date).split("-");
-                            var ep = (o.endDate || o.date).split("-");
+                            var sp = (o.effectiveStart || o.startDate || o.date).split("-");
+                            var ep = (o.effectiveEnd || o.endDate || o.date).split("-");
                             var sm = MONTHS[parseInt(sp[1])-1].slice(0, 3);
                             var sd = parseInt(sp[2]);
                             var em = MONTHS[parseInt(ep[1])-1].slice(0, 3);
@@ -1744,22 +1783,28 @@ function PTOTrackerApp() {
                             return (
                               <div key={o.date + "-" + o.size}
                                 onClick={function() {
-                                  if (isPreviewing) { setPreviewDates([]); setPreviewCulDates([]); }
+                                  if (isPreviewing) { setPreviewDates([]); setPreviewCulDates([]); setPreviewExistingDates([]); }
                                   else {
                                     var culCount = Math.min(Math.max(0, stats.culRemaining), o.ptoDates.length);
                                     setPreviewCulDates(o.ptoDates.slice(0, culCount));
                                     setPreviewDates(o.ptoDates);
+                                    var alreadyPlannedPtoDates = o.ptoDates.filter(function(d) { return days[d] === "PLAN" || days[d] === "PLAN_CUL"; });
+                                    setPreviewExistingDates((o.alreadyPlannedInSpan || []).concat(alreadyPlannedPtoDates));
                                     var oppYear = parseInt(o.date.split("-")[0]); if (oppYear !== viewYear) setViewYear(oppYear);
                                   }
                                 }}
                                 style={{ background: C.surface, borderRadius: 12, padding: 14, cursor: "pointer", border: isPreviewing ? "0.5px solid " + C.textSec : "0.5px solid transparent" }}>
                                 <div style={{ fontFamily: work, fontSize: 12, color: C.text, marginBottom: 3 }}>{dateRange}</div>
                                 {(function() {
+                                  var existing = o.alreadyPlannedInSpan || [];
+                                  var existingPTO = existing.filter(function(d) { return days[d] === "PLAN"; }).length;
+                                  var existingCUL = existing.filter(function(d) { return days[d] === "PLAN_CUL"; }).length;
                                   var culCount = Math.min(Math.max(0, stats.culRemaining), o.ptoDates.length);
-                                  var ptoCount = o.ptoDates.length - culCount;
+                                  var ptoCount = (o.ptoDates.length - culCount) + existingPTO;
+                                  var totalCUL = culCount + existingCUL;
                                   var parts = [];
                                   if (ptoCount > 0) parts.push(ptoCount + " PTO" + (ptoCount > 1 ? "s" : ""));
-                                  if (culCount > 0) parts.push(culCount + " CUL" + (culCount > 1 ? "s" : ""));
+                                  if (totalCUL > 0) parts.push(totalCUL + " CUL" + (totalCUL > 1 ? "s" : ""));
                                   return <div style={{ fontFamily: work, fontSize: 12, color: C.textSec }}>{parts.join(", ")}</div>;
                                 })()}
                               </div>
@@ -1908,7 +1953,7 @@ function PTOTrackerApp() {
                             border: isSelected ? "0.5px solid " + C.textSec : "0.5px solid transparent",
                           }}>
                           <div>
-                            <div style={{ fontFamily: work, fontSize: 14, fontWeight: 500, color: C.text, marginBottom: 2 }}>{dateRange}</div>
+                            <div style={{ fontFamily: work, fontSize: 12, color: C.text, marginBottom: 3 }}>{dateRange}</div>
                             <div style={{ fontFamily: work, fontSize: 12, color: C.textSec }}>{subtitle.join(", ")}</div>
                           </div>
                           <div style={{
@@ -1982,7 +2027,7 @@ function PTOTrackerApp() {
                   <button
                     onClick={function() {
                       if (panelTab === "reco") {
-                        setPreviewDates([]); setPreviewCulDates([]);
+                        setPreviewDates([]); setPreviewCulDates([]); setPreviewExistingDates([]);
                       } else {
                         setEditName(userName);
                         setEditBal(bal);
@@ -2009,7 +2054,7 @@ function PTOTrackerApp() {
                           u[k] = previewCulDates.indexOf(k) !== -1 ? "PLAN_CUL" : "PLAN";
                         });
                         setDays(u);
-                        setPreviewDates([]); setPreviewCulDates([]);
+                        setPreviewDates([]); setPreviewCulDates([]); setPreviewExistingDates([]);
                         notify("Plan applied");
                       } else {
                         setUserName(editName);
