@@ -550,6 +550,7 @@ function PTOTrackerApp() {
   var [isMobile, setIsMobile] = useState(typeof window !== "undefined" ? window.innerWidth <= MOBILE_BP : false);
   var [writeSelectedGroups, setWriteSelectedGroups] = useState([]);
   var [approvedGroups, setApprovedGroups] = useState({});
+  var [lockedDates, setLockedDates] = useState({});
   // Derived — no state needed
   var historyRef = useRef([]);
   var daysRef = useRef(days);
@@ -582,6 +583,7 @@ function PTOTrackerApp() {
     return function() { window.removeEventListener("keydown", onKeyDown); };
   }, []);
 
+
   useEffect(function() {
     function handleResize() {
       setIsMobile(window.innerWidth <= MOBILE_BP);
@@ -612,6 +614,7 @@ function PTOTrackerApp() {
           if (p2.userName) setUserName(p2.userName);
           if (p2.editCL) setEditCL(p2.editCL);
           if (p2.approvedGroups) setApprovedGroups(p2.approvedGroups);
+          if (p2.lockedDates) setLockedDates(p2.lockedDates);
         }
         if (result.storedName) setUserName(result.storedName);
       } catch(e) {}
@@ -641,10 +644,10 @@ function PTOTrackerApp() {
   useEffect(function() {
     if (!loaded) return;
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({ bal: bal, balDate: balDate, userName: userName, editCL: editCL, approvedGroups: approvedGroups }));
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ bal: bal, balDate: balDate, userName: userName, editCL: editCL, approvedGroups: approvedGroups, lockedDates: lockedDates }));
       localStorage.setItem("bill-pto-userName", userName);
     } catch(e) {}
-  }, [bal, balDate, loaded, userName, editCL, approvedGroups]);
+  }, [bal, balDate, loaded, userName, editCL, approvedGroups, lockedDates]);
 
   // Sync edit fields when settings tab opens
   useEffect(function() {
@@ -946,17 +949,52 @@ function PTOTrackerApp() {
       return t === "PTO" || t === "CUL" || t === "PLAN" || t === "PLAN_CUL" || t === "UNPAID" || t === "PLAN_UNPAID";
     }
 
+    var today0 = new Date(); today0.setHours(0,0,0,0);
+    var milD = new Date(startStr); milD.setFullYear(milD.getFullYear() + 5);
+    var mil10D = new Date(startStr); mil10D.setFullYear(mil10D.getFullYear() + 10);
+    var currentBal = stats.balHrs;
+
+    // Locked future PLAN dates the user has committed to — must stay feasible
+    var lockedPlanDates = Object.keys(lockedDates).filter(function(ld) {
+      return days[ld] === "PLAN" && new Date(ld) > today0;
+    }).sort();
+
+    // All existing future PLAN dates (for usedBy simulation)
+    var allFuturePlanDates = Object.entries(days)
+      .filter(function(e) { return e[1] === "PLAN" && new Date(e[0]) > today0; })
+      .map(function(e) { return e[0]; })
+      .sort();
+
     var groups = {};
     opps.filter(function(o) {
-      if (new Date(o.date) < new Date()) return false;
+      if (new Date(o.date) < today0) return false;
       var holYear = parseInt(o.date.split("-")[0]);
       var touchesViewYear = holYear === viewYear || o.ptoDates.some(function(d) { return parseInt(d.split("-")[0]) === viewYear; });
       if (!touchesViewYear) return false;
-      var unplanned = o.ptoDates.filter(function(d) {
+      var newDates = o.ptoDates.filter(function(d) {
         return days[d] !== "PTO" && days[d] !== "CUL" && days[d] !== "PLAN" && days[d] !== "PLAN_CUL";
-      }).length;
+      }).sort();
+      var unplanned = newDates.length;
       if (unplanned > Math.max(0, stats.avail)) return false;
-      return unplanned !== 0;
+      if (unplanned === 0) return false;
+
+      // Ensure adding these dates doesn't push any locked PLAN day into the red
+      if (lockedPlanDates.length > 0) {
+        for (var li = 0; li < lockedPlanDates.length; li++) {
+          var ld = lockedPlanDates[li];
+          var ldDate = new Date(ld);
+          var acc = 0;
+          PAY_PERIOD_ENDS.forEach(function(pp) {
+            if (pp > today0 && pp <= ldDate)
+              acc += pp >= mil10D ? ACCRUAL_RATE_POST10 : pp >= milD ? ACCRUAL_RATE_POST5 : ACCRUAL_RATE_PRE5;
+          });
+          var usedBy = allFuturePlanDates.filter(function(d) { return d <= ld; }).length;
+          var additional = newDates.filter(function(d) { return d <= ld; }).length;
+          if ((currentBal + acc - (usedBy + additional) * HOURS_PER_DAY) < 0) return false;
+        }
+      }
+
+      return true;
     }).forEach(function(o) {
       // Recalculate effective break size by extending the span through adjacent off-days
       var minD = dk2Date(o.startDate);
@@ -993,7 +1031,7 @@ function PTOTrackerApp() {
       }));
     });
     return groups;
-  }, [opps, days, viewYear, stats]);
+  }, [opps, days, viewYear, stats, lockedDates, startStr]);
 
   // Group future PLAN/PLAN_CUL dates into consecutive blocks (weekends/holidays don't break a group)
   var writePlanGroups = useMemo(function() {
@@ -1195,6 +1233,14 @@ function PTOTrackerApp() {
         onClick={function(e) {
           e.stopPropagation();
           if (hol || wk) return;
+          // L+click: toggle locked state on future planned dates
+          if (e.altKey && (type === "PLAN" || type === "PLAN_CUL" || type === "PLAN_UNPAID")) {
+            var now0 = new Date(); now0.setHours(0,0,0,0);
+            if (new Date(year, month, day) >= now0) {
+              setLockedDates(function(prev) { var u = Object.assign({}, prev); if (u[key]) { delete u[key]; } else { u[key] = true; } return u; });
+              return;
+            }
+          }
           // Cmd+click: toggle between PLAN and PLAN_UNPAID
           if (e.metaKey) {
             if (type === "PLAN") {
@@ -1209,9 +1255,11 @@ function PTOTrackerApp() {
             return;
           }
           if (type) {
+            if (lockedDates[key]) return;
             // Already assigned — clear it directly
             pushHistory();
             setDays(function(prev) { var u = Object.assign({}, prev); delete u[key]; return u; });
+            setLockedDates(function(prev) { var u = Object.assign({}, prev); delete u[key]; return u; });
             setActive(null);
           } else {
             var clickedDate = new Date(year, month, day);
@@ -1246,16 +1294,28 @@ function PTOTrackerApp() {
         <div style={{
           position: "absolute", inset: 0, borderRadius: 999,
           background: (type === "PLAN_UNPAID" || type === "UNPAID") ? "transparent" : cellBg,
-          border: type === "PLAN_UNPAID" ? "2px dashed " + C.pto
-                : type === "UNPAID" ? "2px dashed " + C.border
-                : highlightedDates.indexOf(key) !== -1 ? "1px solid #84B400"
+          border: highlightedDates.indexOf(key) !== -1 ? "1px solid #84B400"
                 : previewExistingDates.indexOf(key) !== -1 ? "1px solid #84B400"
                 : "none",
           boxShadow: isAct ? "0 0 0 0.5px " + C.border : "none",
           transition: "background 0.15s, box-shadow 0.15s",
           animation: justToggled[key] ? "dayCellPop 100ms cubic-bezier(0.4, 0, 0, 1) both" : "none",
         }} />
+        {(type === "PLAN_UNPAID" || type === "UNPAID") && (
+          <svg style={{ position: "absolute", inset: 0, width: "100%", height: "100%", overflow: "visible" }} viewBox="0 0 100 100">
+            <circle cx="50" cy="50" r="49" fill="none"
+              stroke={type === "PLAN_UNPAID" ? C.pto : C.border}
+              strokeWidth="0.8"
+              strokeDasharray="4 3"
+              strokeWidth="1.5"
+              vectorEffect="non-scaling-stroke"
+            />
+          </svg>
+        )}
         <span style={{ position: "relative", color: cellColor, transition: "color 0.15s" }}>{day}</span>
+        {lockedDates[key] && (
+          <div style={{ position: "absolute", width: 1.5, height: 1.5, borderRadius: 999, background: cellColor, left: "50%", transform: "translateX(-50%)", top: "calc(50% + 9px)", pointerEvents: "none" }} />
+        )}
         {isAct ? (
           <div onClick={function(e) { e.stopPropagation(); }} style={{
             position: "absolute", top: "100%", left: "50%", transform: "translateX(-50%)",
