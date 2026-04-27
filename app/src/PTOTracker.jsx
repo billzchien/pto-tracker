@@ -1717,7 +1717,7 @@ function PTOTrackerApp() {
             {panelTab === "overview" ? (
               <div style={{ paddingTop: isMobile ? 28 : 40 }}>
                 {/* Balance Section — first: no top border */}
-                <div style={{ marginBottom: 40 }}>
+                <div style={{ marginBottom: 64 }}>
                   <div style={{ fontFamily: work, fontSize: 11, textTransform: "uppercase", color: C.textSec, letterSpacing: 0.5, marginBottom: 20 }}>{"Balance FY" + viewYear}</div>
                   <div style={{ display: "flex", gap: 24 }}>
                     <div style={{ flex: 1 }}>
@@ -1746,7 +1746,7 @@ function PTOTrackerApp() {
                 </div>
 
                 {/* Accrual Rate Section */}
-                <div style={{ borderTop: "0.5px solid " + C.border, paddingTop: 8, marginBottom: 40 }}>
+                <div style={{ borderTop: "0.5px solid " + C.border, paddingTop: 8, marginBottom: 64 }}>
                   <div style={{ fontFamily: work, fontSize: 11, textTransform: "uppercase", color: C.textSec, letterSpacing: 0.5, marginBottom: 20 }}>Accrual Rate</div>
                   {(function() {
                     var now = new Date(); now.setHours(0,0,0,0);
@@ -1774,7 +1774,7 @@ function PTOTrackerApp() {
                 </div>
 
                 {/* Used Vacation Days Section */}
-                <div style={{ borderTop: "0.5px solid " + C.border, paddingTop: 8, marginBottom: 40 }}>
+                <div style={{ borderTop: "0.5px solid " + C.border, paddingTop: 8, marginBottom: 64 }}>
                   <div style={{ fontFamily: work, fontSize: 11, textTransform: "uppercase", color: C.textSec, letterSpacing: 0.5, marginBottom: 20 }}>Used Vacation Days</div>
                   <div style={{ display: "flex", gap: 24 }}>
                     <div style={{ flex: 1 }}>
@@ -1886,7 +1886,7 @@ function PTOTrackerApp() {
             {panelTab === "settings" ? (
               <div style={{ paddingTop: isMobile ? 28 : 40 }}>
                 {/* INFO section — first: no top border */}
-                <div style={{ marginBottom: 40 }}>
+                <div style={{ marginBottom: 64 }}>
                   <div style={{ fontFamily: work, fontSize: 11, textTransform: "uppercase", color: C.textSec, letterSpacing: 0.5, marginBottom: 12 }}>Info</div>
                   <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
                     <div style={{ flex: 1, background: C.surface, borderRadius: 12, padding: 14, border: focusedField === "name" ? "0.5px solid " + C.textSec : "0.5px solid transparent" }}>
@@ -1916,7 +1916,7 @@ function PTOTrackerApp() {
                 </div>
 
                 {/* CURRENT BALANCE section */}
-                <div style={{ borderTop: "0.5px solid " + C.border, paddingTop: 8, marginBottom: 40 }}>
+                <div style={{ borderTop: "0.5px solid " + C.border, paddingTop: 8, marginBottom: 64 }}>
                   <div style={{ fontFamily: work, fontSize: 11, textTransform: "uppercase", color: C.textSec, letterSpacing: 0.5, marginBottom: 12 }}>Current Balance</div>
                   <div style={{ display: "flex", gap: 8 }}>
                     <div style={{ flex: 1, background: C.surface, borderRadius: 12, padding: 14, border: focusedField === "bal" ? "0.5px solid " + C.textSec : "0.5px solid transparent" }}>
@@ -2035,7 +2035,7 @@ function PTOTrackerApp() {
                 )}
 
                 {writeSelectedGroups.length > 0 && writePlanGroups.length > 0 ? (
-                  <div style={{ marginTop: 40 }}>
+                  <div style={{ marginTop: 64 }}>
                     <div style={{ height: "0.5px", background: C.border, marginBottom: 8 }} />
                     <div style={{ fontFamily: work, fontSize: 11, textTransform: "uppercase", color: C.textSec, letterSpacing: 0.5, marginBottom: 16 }}>Text</div>
                     <div style={{ background: C.surface, borderRadius: 12, padding: "16px 20px", userSelect: "text" }}>
