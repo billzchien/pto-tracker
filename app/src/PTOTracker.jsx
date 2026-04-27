@@ -1410,11 +1410,11 @@ function PTOTrackerApp() {
       )}
 
       {/* Main Content Area - independent scroll */}
-      <div style={{ flex: 1, minWidth: 0, height: "100vh", overflowY: "auto", overflowX: "hidden" }}>
+      <div style={{ flex: 1, minWidth: 0, height: "100vh", overflow: "hidden", display: "flex", flexDirection: "column" }}>
 
-        {/* Sticky Top Section */}
-        <div style={{ position: "sticky", top: 0, zIndex: 600, background: C.bg }}>
-          <div style={{ padding: isMobile ? "20px 20px 0 20px" : "40px 40px 0 40px" }}>
+        {/* Top Section */}
+        <div style={{ flexShrink: 0, zIndex: 600, background: C.bg }}>
+          <div style={{ padding: isMobile ? "20px 20px 0 20px" : "24px 40px 0 40px" }}>
             {/* Mobile stats row (compact) - hidden when panel active */}
             {isMobile && (
               <div style={{ display: "flex", marginBottom: showPanel ? 0 : 40, maxHeight: showPanel ? 0 : 120, opacity: showPanel ? 0 : 1, overflow: "hidden", transition: "max-height 400ms cubic-bezier(0.4, 0, 0, 1), opacity 400ms cubic-bezier(0.4, 0, 0, 1), margin-bottom 400ms cubic-bezier(0.4, 0, 0, 1)" }}>
@@ -1509,11 +1509,11 @@ function PTOTrackerApp() {
             </div>
           </div>
           {/* Divider */}
-          <div style={{ height: "0.5px", background: C.border, margin: isMobile ? "16px 20px 0 20px" : "40px 40px 0 40px" }} />
+          <div style={{ height: "0.5px", background: C.border, margin: isMobile ? "16px 20px 0 20px" : "24px 40px 0 40px" }} />
         </div>
 
         {/* Calendar Grid */}
-        <div style={{ padding: isMobile ? "24px 20px 40px 20px" : "59px 40px 40px 40px" }} onClick={function(e) { e.stopPropagation(); if (showPanel) { setShowPanel(false); setPreviewDates([]); setPreviewCulDates([]); setPreviewExistingDates([]); } }}>
+        <div style={{ flex: 1, overflowY: "auto", overflowX: "hidden", padding: isMobile ? "24px 20px 40px 20px" : "64px 40px 40px 40px" }} onClick={function(e) { e.stopPropagation(); if (showPanel) { setShowPanel(false); setPreviewDates([]); setPreviewCulDates([]); setPreviewExistingDates([]); } }}>
           <div style={{
             display: "grid",
             gridTemplateColumns: "repeat(auto-fill, minmax(max(260px, calc(25% - 36px)), 1fr))",
@@ -1668,12 +1668,12 @@ function PTOTrackerApp() {
           {/* Scrollable content area */}
           <div style={{ flex: 1, overflowY: "auto", padding: isMobile
             ? ("20px 20px " + (((panelTab === "reco" && previewDates.length > 0) || (panelTab === "settings" && settingsDirty) || (panelTab === "write" && writeSelectedGroups.length > 0)) ? "120px" : "20px") + " 20px")
-            : ("48px 24px " + (((panelTab === "reco" && previewDates.length > 0) || (panelTab === "settings" && settingsDirty) || (panelTab === "write" && writeSelectedGroups.length > 0)) ? "160px" : "24px") + " 24px")
+            : ("36px 24px " + (((panelTab === "reco" && previewDates.length > 0) || (panelTab === "settings" && settingsDirty) || (panelTab === "write" && writeSelectedGroups.length > 0)) ? "160px" : "24px") + " 24px")
           }}>
 
             {/* Panel Header - desktop only */}
             {!isMobile && (
-              <div style={{ marginBottom: 64 }}>
+              <div style={{ marginBottom: 54 }}>
                 <div style={{ fontFamily: goudy, fontStyle: "italic", fontSize: 50, lineHeight: 1, marginBottom: 8 }}>{userName}</div>
                 <div style={{ fontFamily: work, fontSize: 12, color: C.textSec, lineHeight: 1.5 }}>Management Level {editCL}</div>
                 <div style={{ fontFamily: work, fontSize: 12, color: C.textSec, lineHeight: 1.5 }}>{"Since " + new Date(startStr + "T12:00:00").toLocaleDateString("en-US", { month: "numeric", day: "numeric", year: "numeric" })}</div>
