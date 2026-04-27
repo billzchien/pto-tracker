@@ -1414,7 +1414,7 @@ function PTOTrackerApp() {
 
         {/* Sticky Top Section */}
         <div style={{ position: "sticky", top: 0, zIndex: 600, background: C.bg }}>
-          <div style={{ padding: isMobile ? "20px 20px 0 20px" : "32px 40px 0 40px" }}>
+          <div style={{ padding: isMobile ? "20px 20px 0 20px" : "40px 40px 0 40px" }}>
             {/* Mobile stats row (compact) - hidden when panel active */}
             {isMobile && (
               <div style={{ display: "flex", marginBottom: showPanel ? 0 : 40, maxHeight: showPanel ? 0 : 120, opacity: showPanel ? 0 : 1, overflow: "hidden", transition: "max-height 400ms cubic-bezier(0.4, 0, 0, 1), opacity 400ms cubic-bezier(0.4, 0, 0, 1), margin-bottom 400ms cubic-bezier(0.4, 0, 0, 1)" }}>
@@ -1513,11 +1513,11 @@ function PTOTrackerApp() {
         </div>
 
         {/* Calendar Grid */}
-        <div style={{ padding: isMobile ? "24px 20px 32px 20px" : "59px 40px 32px 40px" }} onClick={function(e) { e.stopPropagation(); if (showPanel) { setShowPanel(false); setPreviewDates([]); setPreviewCulDates([]); setPreviewExistingDates([]); } }}>
+        <div style={{ padding: isMobile ? "24px 20px 40px 20px" : "59px 40px 40px 40px" }} onClick={function(e) { e.stopPropagation(); if (showPanel) { setShowPanel(false); setPreviewDates([]); setPreviewCulDates([]); setPreviewExistingDates([]); } }}>
           <div style={{
             display: "grid",
             gridTemplateColumns: "repeat(auto-fill, minmax(max(260px, calc(25% - 36px)), 1fr))",
-            gap: "40px 48px",
+            gap: "48px 48px",
           }}>
             {MONTHS.map(function(mName, mi) {
               var dim = daysIn(viewYear, mi);
@@ -1556,7 +1556,7 @@ function PTOTrackerApp() {
 
               return (
                 <div key={mName}>
-                  <div style={{ fontFamily: work, fontSize: 12, fontWeight: 600, color: C.text, marginBottom: 16, textTransform: "uppercase", letterSpacing: 1 }}>
+                  <div style={{ fontFamily: goudy, fontStyle: "italic", fontSize: 22, color: C.text, marginBottom: 24 }}>
                     {mName}
                   </div>
                   {/* Weekday headers */}
@@ -1668,13 +1668,13 @@ function PTOTrackerApp() {
           {/* Scrollable content area */}
           <div style={{ flex: 1, overflowY: "auto", padding: isMobile
             ? ("20px 20px " + (((panelTab === "reco" && previewDates.length > 0) || (panelTab === "settings" && settingsDirty) || (panelTab === "write" && writeSelectedGroups.length > 0)) ? "120px" : "20px") + " 20px")
-            : ("40px 24px " + (((panelTab === "reco" && previewDates.length > 0) || (panelTab === "settings" && settingsDirty) || (panelTab === "write" && writeSelectedGroups.length > 0)) ? "160px" : "24px") + " 24px")
+            : ("48px 24px " + (((panelTab === "reco" && previewDates.length > 0) || (panelTab === "settings" && settingsDirty) || (panelTab === "write" && writeSelectedGroups.length > 0)) ? "160px" : "24px") + " 24px")
           }}>
 
             {/* Panel Header - desktop only */}
             {!isMobile && (
-              <div style={{ marginBottom: 48 }}>
-                <div style={{ fontFamily: goudy, fontStyle: "italic", fontSize: 54, lineHeight: 1, marginBottom: 8 }}>{userName}</div>
+              <div style={{ marginBottom: 64 }}>
+                <div style={{ fontFamily: goudy, fontStyle: "italic", fontSize: 50, lineHeight: 1, marginBottom: 8 }}>{userName}</div>
                 <div style={{ fontFamily: work, fontSize: 12, color: C.textSec, lineHeight: 1.5 }}>Management Level {editCL}</div>
                 <div style={{ fontFamily: work, fontSize: 12, color: C.textSec, lineHeight: 1.5 }}>{"Since " + new Date(startStr + "T12:00:00").toLocaleDateString("en-US", { month: "numeric", day: "numeric", year: "numeric" })}</div>
               </div>
