@@ -203,18 +203,14 @@ function AnimatedDigit({ digit, slotState }) {
     if (timerRef.current) clearTimeout(timerRef.current);
     var isInc = (d === prev + 1) || (prev === 9 && d === 0);
     var isDec = (d === prev - 1) || (prev === 0 && d === 9);
-    if (isInc || isDec) {
-      var target = isInc ? 0 : -66.666;
-      setAnimating(true);
-      setTargetPct(target);
-      timerRef.current = setTimeout(function() {
-        setAnimating(false);
-        setDisplayD(d);
-        setTargetPct(-33.333);
-      }, 210);
-    } else {
+    var target = isInc ? 0 : -66.666;
+    setAnimating(true);
+    setTargetPct(target);
+    timerRef.current = setTimeout(function() {
+      setAnimating(false);
       setDisplayD(d);
-    }
+      setTargetPct(-33.333);
+    }, 210);
   }, [d, slotState]);
 
   var above = (displayD + 1) % 10;
@@ -762,8 +758,6 @@ function PTOTrackerApp() {
       }
     });
 
-    var eoy = currentBal + futAcc - ptoAfter * HOURS_PER_DAY;
-    var avail = Math.floor((currentBal + futAcc) / HOURS_PER_DAY) - ptoAfter;
 
     // Feasibility for each future PLAN date, anchored at today + currentBal
     var feasibility = {};
@@ -803,19 +797,32 @@ function PTOTrackerApp() {
     var balanceAtFYEnd = currentBal + accToBalFYEnd - ptoBeforeBalFYEnd * HOURS_PER_DAY;
     var carriedOver = Math.min(balanceAtFYEnd, 200);
 
-    var accSepToEOCY = 0;
-    PAY_PERIOD_ENDS.forEach(function(pp) {
-      if (pp > balFYEnd && pp <= EOCY) accSepToEOCY += pp >= milestone10D ? ACCRUAL_RATE_POST10 : pp >= milestoneD ? ACCRUAL_RATE_POST5 : ACCRUAL_RATE_PRE5;
-    });
-
-    var ptoSepToEOCY = 0;
-    entries.forEach(function(entry) {
-      var k = entry[0], t = entry[1];
-      if (t === "PLAN") {
-        var d = new Date(k);
-        if (d > balFYEnd && d <= EOCY) ptoSepToEOCY++;
+    // eoy / avail: FY-walk from current FY end to fyEnd, capping at 200 at each Aug 31
+    var eoy, avail;
+    if (fyEnd <= balFYEnd) {
+      eoy = currentBal + futAcc - ptoAfter * HOURS_PER_DAY;
+      avail = Math.floor((currentBal + futAcc) / HOURS_PER_DAY) - ptoAfter;
+    } else {
+      var runEoy = carriedOver;
+      var curEoyBound = balFYEnd;
+      while (true) {
+        var nextEoyBound = new Date(curEoyBound.getFullYear() + 1, 7, 31);
+        var eoySegEnd = nextEoyBound <= fyEnd ? nextEoyBound : fyEnd;
+        PAY_PERIOD_ENDS.forEach(function(pp) {
+          if (pp > curEoyBound && pp <= eoySegEnd)
+            runEoy += pp >= milestone10D ? ACCRUAL_RATE_POST10 : pp >= milestoneD ? ACCRUAL_RATE_POST5 : ACCRUAL_RATE_PRE5;
+        });
+        entries.forEach(function(entry) {
+          var k = entry[0], t = entry[1];
+          if (t === "PLAN") { var d = new Date(k); if (d > curEoyBound && d <= eoySegEnd) runEoy -= HOURS_PER_DAY; }
+        });
+        if (eoySegEnd >= fyEnd) break;
+        runEoy = Math.min(runEoy, 200);
+        curEoyBound = nextEoyBound;
       }
-    });
+      eoy = runEoy;
+      avail = Math.floor(runEoy / HOURS_PER_DAY);
+    }
 
     var eocyDays;
     if (EOCY <= balFYEnd) {
@@ -829,7 +836,25 @@ function PTOTrackerApp() {
       });
       eocyDays = Math.floor((currentBal + directAcc) / HOURS_PER_DAY) - directPTO;
     } else {
-      eocyDays = Math.floor((carriedOver + accSepToEOCY) / HOURS_PER_DAY) - ptoSepToEOCY;
+      // Walk FY by FY so the 200-hr carryover cap is applied at each Aug 31 boundary
+      var runBal = carriedOver;
+      var curFYEnd = balFYEnd;
+      while (true) {
+        var nextFYEnd = new Date(curFYEnd.getFullYear() + 1, 7, 31);
+        var segEnd = nextFYEnd <= EOCY ? nextFYEnd : EOCY;
+        PAY_PERIOD_ENDS.forEach(function(pp) {
+          if (pp > curFYEnd && pp <= segEnd)
+            runBal += pp >= milestone10D ? ACCRUAL_RATE_POST10 : pp >= milestoneD ? ACCRUAL_RATE_POST5 : ACCRUAL_RATE_PRE5;
+        });
+        entries.forEach(function(entry) {
+          var k = entry[0], t = entry[1];
+          if (t === "PLAN") { var d = new Date(k); if (d > curFYEnd && d <= segEnd) runBal -= HOURS_PER_DAY; }
+        });
+        if (segEnd >= EOCY) break;
+        runBal = Math.min(runBal, 200);
+        curFYEnd = nextFYEnd;
+      }
+      eocyDays = Math.floor(runBal / HOURS_PER_DAY);
     }
 
     return {
