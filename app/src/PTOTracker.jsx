@@ -90,16 +90,16 @@ var C = {
   text: "#000000",
   textSec: "#757575",
   textDim: "#505050",
-  pto: "#D4F773",
-  cul: "#F4FD7A",
-  hol: "#FFF199",
+  pto: "#ADFF55",
+  cul: "#D9FF00",
+  hol: "#FFF200",
   used: "#F5F4F0",
   today: "#000000",
   todayText: "#FFFFFF",
   weekend: "#F8F8F8",
   neg: "#DB2223",
   negBg: "#FFD3D3",
-  unpaid: "#85B500",
+  unpaid: "#70D900",
 };
 
 function DateField({ value, onChange, onFocus, onBlur, isFocused }) {
@@ -331,13 +331,19 @@ async function prefetchData() {
         }
       }
     }
-    var r2 = localStorage.getItem(STORAGE_KEY);
-    if (r2) {
-      var p2 = JSON.parse(r2);
-      result.settings = p2;
+    var sRes = await supabase.from('pto_settings').select('data').eq('id', 1).single();
+    if (!sRes.error && sRes.data) {
+      result.settings = sRes.data.data;
+    } else {
+      var r2 = localStorage.getItem(STORAGE_KEY);
+      if (r2) {
+        var p2 = JSON.parse(r2);
+        result.settings = p2;
+        await supabase.from('pto_settings').upsert({ id: 1, data: p2 });
+      }
     }
     var storedName = localStorage.getItem("bill-pto-userName");
-    if (storedName) result.storedName = storedName;
+    if (storedName && result.settings && !result.settings.userName) result.storedName = storedName;
   } catch(e) {}
   return result;
 }
@@ -611,6 +617,7 @@ function PTOTrackerApp() {
           if (p2.editCL) setEditCL(p2.editCL);
           if (p2.approvedGroups) setApprovedGroups(p2.approvedGroups);
           if (p2.lockedDates) setLockedDates(p2.lockedDates);
+          if (p2.startStr) setStartStr(p2.startStr);
         }
         if (result.storedName) setUserName(result.storedName);
       } catch(e) {}
@@ -639,11 +646,13 @@ function PTOTrackerApp() {
 
   useEffect(function() {
     if (!loaded) return;
+    var data = { bal: bal, balDate: balDate, userName: userName, editCL: editCL, approvedGroups: approvedGroups, lockedDates: lockedDates, startStr: startStr };
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({ bal: bal, balDate: balDate, userName: userName, editCL: editCL, approvedGroups: approvedGroups, lockedDates: lockedDates }));
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
       localStorage.setItem("bill-pto-userName", userName);
     } catch(e) {}
-  }, [bal, balDate, loaded, userName, editCL, approvedGroups, lockedDates]);
+    supabase.from('pto_settings').upsert({ id: 1, data: data });
+  }, [bal, balDate, loaded, userName, editCL, approvedGroups, lockedDates, startStr]);
 
   // Sync edit fields when settings tab opens
   useEffect(function() {
@@ -1319,8 +1328,8 @@ function PTOTrackerApp() {
         <div style={{
           position: "absolute", inset: 0, borderRadius: 999,
           background: (type === "PLAN_UNPAID" || type === "UNPAID") ? "transparent" : cellBg,
-          border: highlightedDates.indexOf(key) !== -1 ? "1px solid #84B400"
-                : previewExistingDates.indexOf(key) !== -1 ? "1px solid #84B400"
+          border: highlightedDates.indexOf(key) !== -1 ? "1px solid #70D900"
+                : previewExistingDates.indexOf(key) !== -1 ? "1px solid #70D900"
                 : "none",
           boxShadow: isAct ? "0 0 0 0.5px " + C.border : "none",
           transition: "background 0.15s, box-shadow 0.15s",
@@ -2031,7 +2040,7 @@ function PTOTrackerApp() {
                             }, groupYear !== viewYear ? 50 : 0);
                           }}
                           style={{
-                            background: isApproved ? "#ECF4D6" : C.surface,
+                            background: isApproved ? "#ADFF55" : C.surface,
                             borderRadius: 12, padding: "14px 16px",
                             display: "flex", alignItems: "center", justifyContent: "space-between",
                             cursor: isApproved ? "default" : "pointer",
@@ -2044,12 +2053,12 @@ function PTOTrackerApp() {
                           <div style={{
                             width: 24, height: 24, borderRadius: 999, flexShrink: 0,
                             border: (isSelected || isApproved) ? "none" : "1.5px solid " + C.border,
-                            background: isApproved ? "#D4F773" : (isSelected ? C.text : "transparent"),
+                            background: isApproved ? "#FFFFFF" : (isSelected ? C.text : "transparent"),
                             display: "flex", alignItems: "center", justifyContent: "center",
                           }}>
                             {(isSelected || isApproved) ? (
                               <svg width="11" height="8" viewBox="0 0 11 8" fill="none">
-                                <path d="M1 4L4 7L10 1" stroke={isApproved ? "#84B400" : "white"} strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"/>
+                                <path d="M1 4L4 7L10 1" stroke={isApproved ? "#70D900" : "white"} strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"/>
                               </svg>
                             ) : null}
                           </div>
