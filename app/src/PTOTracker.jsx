@@ -541,6 +541,7 @@ function PTOTrackerApp() {
   var [tooltip, setTooltip] = useState(null);
   var [tooltipShift, setTooltipShift] = useState(0);
   var prevDaysRef = useRef(null);
+  var settingsLoadedRef = useRef(false);
   var tooltipDivRef = useRef(null);
   var [sliderDays, setSliderDays] = useState(null);
   var tabBarRef = useRef(null);
@@ -651,6 +652,10 @@ function PTOTrackerApp() {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
       localStorage.setItem("bill-pto-userName", userName);
     } catch(e) {}
+    if (!settingsLoadedRef.current) {
+      settingsLoadedRef.current = true;
+      return;
+    }
     supabase.from('pto_settings').upsert({ id: 1, data: data });
   }, [bal, balDate, loaded, userName, editCL, approvedGroups, lockedDates, startStr]);
 
