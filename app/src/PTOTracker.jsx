@@ -1735,7 +1735,7 @@ function PTOTrackerApp() {
             {/* Panel Header - desktop only */}
             {!isMobile && (
               <div style={{ marginBottom: 54 }}>
-                <div style={{ fontFamily: goudy, fontStyle: "italic", fontSize: 50, lineHeight: 1, marginBottom: 8 }}>{userName}</div>
+                <div style={{ fontFamily: goudy, fontStyle: "italic", fontSize: 50, lineHeight: 1, marginBottom: 8, letterSpacing: -1 }}>{userName}</div>
                 <div style={{ fontFamily: work, fontSize: 12, color: C.textSec, lineHeight: 1.5 }}>Management Level {editCL}</div>
                 <div style={{ fontFamily: work, fontSize: 12, color: C.textSec, lineHeight: 1.5 }}>{"Since " + new Date(startStr + "T12:00:00").toLocaleDateString("en-US", { month: "numeric", day: "numeric", year: "numeric" })}</div>
               </div>
