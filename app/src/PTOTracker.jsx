@@ -499,6 +499,27 @@ export default function PTOTracker() {
   return <PTOTrackerApp />;
 }
 
+function smoothScrollTop(el, duration) {
+  if (!el || el.scrollTop === 0) return;
+  var start = el.scrollTop;
+  var startTime = performance.now();
+  var p1x = 0.4, p1y = 0.0, p2x = 0.0, p2y = 1.0;
+  function sx(t) { return 3*(1-t)*(1-t)*t*p1x + 3*(1-t)*t*t*p2x + t*t*t; }
+  function sy(t) { return 3*(1-t)*(1-t)*t*p1y + 3*(1-t)*t*t*p2y + t*t*t; }
+  function sdx(t) { return 3*(1-t)*(1-t)*p1x + 6*(1-t)*t*(p2x-p1x) + 3*t*t*(1-p2x); }
+  function ease(x) {
+    var u = x;
+    for (var i = 0; i < 10; i++) { var d = sdx(u); if (Math.abs(d) < 1e-6) break; u -= (sx(u)-x)/d; }
+    return sy(u);
+  }
+  function tick(now) {
+    var t = Math.min((now - startTime) / duration, 1);
+    el.scrollTop = start * (1 - ease(t));
+    if (t < 1) requestAnimationFrame(tick);
+  }
+  requestAnimationFrame(tick);
+}
+
 function PTOTrackerApp() {
   var [fadeIn, setFadeIn] = useState(false);
   var [days, setDays] = useState(DEFAULT_DATA);
@@ -557,6 +578,7 @@ function PTOTrackerApp() {
   // Derived — no state needed
   var historyRef = useRef([]);
   var daysRef = useRef(days);
+  var calendarScrollRef = useRef(null);
 
   // Immediate Supabase upsert with current state + overrides. Avoids the
   // useEffect-deferred upsert race where a fast refresh cancels the request.
@@ -1543,7 +1565,7 @@ function PTOTrackerApp() {
                   padding: "0",
                   flex: isMobile ? 1 : "none",
                 }}>
-                  <div onClick={function() { setViewYear(viewYear - 1); }}
+                  <div onClick={function() { setViewYear(viewYear - 1); smoothScrollTop(calendarScrollRef.current, 400); }}
                     onMouseEnter={function(e){ e.currentTarget.style.background = C.border; e.currentTarget.style.color = C.textDim; }}
                     onMouseLeave={function(e){ e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = C.textDim; }}
                     onMouseDown={function(e){ e.currentTarget.style.background = C.text; e.currentTarget.style.color = C.bg; }}
@@ -1554,7 +1576,7 @@ function PTOTrackerApp() {
                     </svg>
                   </div>
                   <span style={{ fontFamily: grotesk, fontWeight: 500, fontSize: 20, padding: "0 16px", flex: isMobile ? 1 : "none", textAlign: "center" }}>{viewYear}</span>
-                  <div onClick={function() { setViewYear(viewYear + 1); }}
+                  <div onClick={function() { setViewYear(viewYear + 1); smoothScrollTop(calendarScrollRef.current, 400); }}
                     onMouseEnter={function(e){ e.currentTarget.style.background = C.border; e.currentTarget.style.color = C.textDim; }}
                     onMouseLeave={function(e){ e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = C.textDim; }}
                     onMouseDown={function(e){ e.currentTarget.style.background = C.text; e.currentTarget.style.color = C.bg; }}
@@ -1574,7 +1596,7 @@ function PTOTrackerApp() {
         </div>
 
         {/* Calendar Grid */}
-        <div style={{ flex: 1, overflowY: "auto", overflowX: "hidden", padding: isMobile ? "24px 20px 40px 20px" : "64px 40px 40px 40px" }} onClick={function(e) { e.stopPropagation(); if (showPanel) { setShowPanel(false); setPreviewDates([]); setPreviewCulDates([]); setPreviewExistingDates([]); } }}>
+        <div ref={calendarScrollRef} style={{ flex: 1, overflowY: "auto", overflowX: "hidden", padding: isMobile ? "24px 20px 40px 20px" : "64px 40px 40px 40px" }} onClick={function(e) { e.stopPropagation(); if (showPanel) { setShowPanel(false); setPreviewDates([]); setPreviewCulDates([]); setPreviewExistingDates([]); } }}>
           <div style={{
             display: "grid",
             gridTemplateColumns: "repeat(auto-fill, minmax(max(260px, calc(25% - 36px)), 1fr))",
