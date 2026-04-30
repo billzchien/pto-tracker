@@ -1473,7 +1473,7 @@ function PTOTrackerApp() {
             <div style={{ display: "flex", justifyContent: isMobile ? "center" : "space-between", alignItems: "center", flexWrap: isMobile ? "nowrap" : "wrap", gap: isMobile ? 8 : 20 }}>
               {/* Desktop stats (already rendered above on mobile) */}
               {!isMobile && (
-                <div style={{ display: "flex", gap: 32 }}>
+                <div style={{ display: "flex", gap: 40 }}>
                   <div style={{ display: "flex", alignItems: "flex-end", gap: 8 }}>
                     <AnimatedNumber value={stats.eocyDays} style={{ fontFamily: mono, fontWeight: 400, fontSize: 54, lineHeight: 1 }} />
                     <div style={{ position: "relative", marginBottom: 12 }}>
