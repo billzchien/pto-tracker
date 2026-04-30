@@ -541,7 +541,7 @@ function PTOTrackerApp() {
   var [tooltip, setTooltip] = useState(null);
   var [tooltipShift, setTooltipShift] = useState(0);
   var prevDaysRef = useRef(null);
-  var settingsLoadedRef = useRef(false);
+  var userChangedSettingsRef = useRef(false);
   var tooltipDivRef = useRef(null);
   var [sliderDays, setSliderDays] = useState(null);
   var tabBarRef = useRef(null);
@@ -652,11 +652,10 @@ function PTOTrackerApp() {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
       localStorage.setItem("bill-pto-userName", userName);
     } catch(e) {}
-    if (!settingsLoadedRef.current) {
-      settingsLoadedRef.current = true;
-      return;
+    if (userChangedSettingsRef.current) {
+      userChangedSettingsRef.current = false;
+      supabase.from('pto_settings').upsert({ id: 1, data: data });
     }
-    supabase.from('pto_settings').upsert({ id: 1, data: data });
   }, [bal, balDate, loaded, userName, editCL, approvedGroups, lockedDates, startStr]);
 
   // Sync edit fields when settings tab opens
@@ -1276,6 +1275,7 @@ function PTOTrackerApp() {
           if (e.altKey && (type === "PLAN" || type === "PLAN_CUL" || type === "PLAN_UNPAID")) {
             var now0 = new Date(); now0.setHours(0,0,0,0);
             if (new Date(year, month, day) >= now0) {
+              userChangedSettingsRef.current = true;
               setLockedDates(function(prev) { var u = Object.assign({}, prev); if (u[key]) { delete u[key]; } else { u[key] = true; } return u; });
               return;
             }
@@ -1298,6 +1298,7 @@ function PTOTrackerApp() {
             // Already assigned — clear it directly
             pushHistory();
             setDays(function(prev) { var u = Object.assign({}, prev); delete u[key]; return u; });
+            userChangedSettingsRef.current = true;
             setLockedDates(function(prev) { var u = Object.assign({}, prev); delete u[key]; return u; });
             setActive(null);
           } else {
@@ -2005,6 +2006,7 @@ function PTOTrackerApp() {
                       if (ulCount > 0) subtitle.push(ulCount + " UL");
                       var longPressTimer = { id: null };
                       function toggleApproved() {
+                        userChangedSettingsRef.current = true;
                         setApprovedGroups(function(prev) {
                           var u = Object.assign({}, prev);
                           if (u[group[0]]) { delete u[group[0]]; } else {
@@ -2156,6 +2158,7 @@ function PTOTrackerApp() {
                         setPreviewDates([]); setPreviewCulDates([]); setPreviewExistingDates([]);
                         notify("Plan applied");
                       } else {
+                        userChangedSettingsRef.current = true;
                         setUserName(editName);
                         setBal(editBal);
                         setBalDate(editBalDate);
