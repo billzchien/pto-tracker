@@ -558,6 +558,18 @@ function PTOTrackerApp() {
   var historyRef = useRef([]);
   var daysRef = useRef(days);
 
+  // Immediate Supabase upsert with current state + overrides. Avoids the
+  // useEffect-deferred upsert race where a fast refresh cancels the request.
+  function persistSettings(overrides) {
+    var data = {
+      bal: bal, balDate: balDate, userName: userName, editCL: editCL,
+      approvedGroups: approvedGroups, lockedDates: lockedDates, startStr: startStr
+    };
+    if (overrides) Object.assign(data, overrides);
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); } catch(e) {}
+    supabase.from('pto_settings').upsert({ id: 1, data: data }).then(function() {});
+  }
+
   useEffect(function() { daysRef.current = days; }, [days]);
 
   useLayoutEffect(function() {
@@ -652,9 +664,13 @@ function PTOTrackerApp() {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
       localStorage.setItem("bill-pto-userName", userName);
     } catch(e) {}
+    // Note: Supabase upserts now happen immediately in click handlers via
+    // persistSettings(). This effect only mirrors localStorage. We keep the
+    // ref-gated upsert as a safety net for any state changes routed through
+    // setX without a paired persistSettings() call.
     if (userChangedSettingsRef.current) {
       userChangedSettingsRef.current = false;
-      supabase.from('pto_settings').upsert({ id: 1, data: data });
+      supabase.from('pto_settings').upsert({ id: 1, data: data }).then(function() {});
     }
   }, [bal, balDate, loaded, userName, editCL, approvedGroups, lockedDates, startStr]);
 
@@ -1275,8 +1291,10 @@ function PTOTrackerApp() {
           if (e.altKey && (type === "PLAN" || type === "PLAN_CUL" || type === "PLAN_UNPAID")) {
             var now0 = new Date(); now0.setHours(0,0,0,0);
             if (new Date(year, month, day) >= now0) {
-              userChangedSettingsRef.current = true;
-              setLockedDates(function(prev) { var u = Object.assign({}, prev); if (u[key]) { delete u[key]; } else { u[key] = true; } return u; });
+              var nextLocked = Object.assign({}, lockedDates);
+              if (nextLocked[key]) { delete nextLocked[key]; } else { nextLocked[key] = true; }
+              setLockedDates(nextLocked);
+              persistSettings({ lockedDates: nextLocked });
               return;
             }
           }
@@ -1298,8 +1316,11 @@ function PTOTrackerApp() {
             // Already assigned — clear it directly
             pushHistory();
             setDays(function(prev) { var u = Object.assign({}, prev); delete u[key]; return u; });
+            var nextLockedClear = Object.assign({}, lockedDates);
+            delete nextLockedClear[key];
             userChangedSettingsRef.current = true;
-            setLockedDates(function(prev) { var u = Object.assign({}, prev); delete u[key]; return u; });
+            setLockedDates(nextLockedClear);
+            persistSettings({ lockedDates: nextLockedClear });
             setActive(null);
           } else {
             var clickedDate = new Date(year, month, day);
@@ -2006,6 +2027,9 @@ function PTOTrackerApp() {
                       if (ulCount > 0) subtitle.push(ulCount + " UL");
                       var longPressTimer = { id: null };
                       function toggleApproved() {
+                        var nextApproved = Object.assign({}, approvedGroups);
+                        if (nextApproved[group[0]]) { delete nextApproved[group[0]]; } else { nextApproved[group[0]] = true; }
+                        persistSettings({ approvedGroups: nextApproved });
                         userChangedSettingsRef.current = true;
                         setApprovedGroups(function(prev) {
                           var u = Object.assign({}, prev);
@@ -2164,6 +2188,7 @@ function PTOTrackerApp() {
                         setBalDate(editBalDate);
                         setStartStr(editStart);
                         setSettingsDirty(false);
+                        persistSettings({ userName: editName, bal: editBal, balDate: editBalDate, startStr: editStart });
                       }
                     }}
                     style={{
