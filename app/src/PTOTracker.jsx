@@ -91,14 +91,14 @@ var C = {
   textSec: "#757575",
   textDim: "#505050",
   pto: "#ADFF55",
-  cul: "#FFF200",
+  cul: "#D9FF00",
   hol: "#D9FF00",
-  used: "#F5F4F0",
+  used: "#FBFCFB",
   today: "#000000",
   todayText: "#FFFFFF",
   weekend: "#F8F8F8",
-  neg: "#DB2223",
-  negBg: "#FFD3D3",
+  neg: "#400000",
+  negBg: "#FF715B",
   unpaid: "#70D900",
 };
 
@@ -1226,9 +1226,10 @@ function PTOTrackerApp() {
     var isPreview = previewDates.indexOf(key) !== -1;
     var now = new Date();
     var isToday = now.getFullYear() === year && now.getMonth() === month && now.getDate() === day;
+    var isPast = new Date(year, month, day) < new Date(now.getFullYear(), now.getMonth(), now.getDate());
     // Determine cell style
     var cellBg = "transparent";
-    var cellColor = C.textDim;
+    var cellColor = C.text;
     var cellBorder = "none";
 
     if (isToday) {
@@ -1258,11 +1259,11 @@ function PTOTrackerApp() {
       cellBg = "transparent";
       cellColor = C.textDim;
     } else if (hol) {
-      cellBg = C.hol;
+      cellBg = isPast ? "#F8F8F8" : "#FFF200";
       cellColor = C.text;
     } else if (otherHol) {
-      cellBg = C.hol + "33";
-      cellColor = C.textDim;
+      cellBg = isPast ? "#FFFFFF" : "#FAF8E2";
+      cellColor = C.text;
     } else if (wk) {
       cellBg = C.weekend;
       cellColor = C.textDim;
@@ -1273,6 +1274,9 @@ function PTOTrackerApp() {
       cellBg = (previewCulDates.indexOf(key) !== -1 ? C.cul : C.pto) + "80";
       cellColor = C.text;
     }
+
+    // Past dates: dim the number regardless of type
+    if (isPast && !isToday) cellColor = "#757575";
 
     // Determine current "option" for the popup
     var currentOption = "unused";
