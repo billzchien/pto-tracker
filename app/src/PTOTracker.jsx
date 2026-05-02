@@ -499,22 +499,34 @@ export default function PTOTracker() {
   return <PTOTrackerApp />;
 }
 
-function smoothScrollTop(el, duration) {
-  if (!el || el.scrollTop === 0) return;
-  var start = el.scrollTop;
-  var startTime = performance.now();
+function oooEase(x) {
   var p1x = 0.4, p1y = 0.0, p2x = 0.0, p2y = 1.0;
   function sx(t) { return 3*(1-t)*(1-t)*t*p1x + 3*(1-t)*t*t*p2x + t*t*t; }
   function sy(t) { return 3*(1-t)*(1-t)*t*p1y + 3*(1-t)*t*t*p2y + t*t*t; }
   function sdx(t) { return 3*(1-t)*(1-t)*p1x + 6*(1-t)*t*(p2x-p1x) + 3*t*t*(1-p2x); }
-  function ease(x) {
-    var u = x;
-    for (var i = 0; i < 10; i++) { var d = sdx(u); if (Math.abs(d) < 1e-6) break; u -= (sx(u)-x)/d; }
-    return sy(u);
-  }
+  var u = x;
+  for (var i = 0; i < 10; i++) { var d = sdx(u); if (Math.abs(d) < 1e-6) break; u -= (sx(u)-x)/d; }
+  return sy(u);
+}
+function smoothScrollTop(el, duration) {
+  if (!el || el.scrollTop === 0) return;
+  var from = el.scrollTop, startTime = performance.now();
   function tick(now) {
     var t = Math.min((now - startTime) / duration, 1);
-    el.scrollTop = start * (1 - ease(t));
+    el.scrollTop = from * (1 - oooEase(t));
+    if (t < 1) requestAnimationFrame(tick);
+  }
+  requestAnimationFrame(tick);
+}
+function smoothScrollTo(container, targetEl, duration) {
+  if (!container || !targetEl) return;
+  var from = container.scrollTop;
+  var to = Math.max(0, from + targetEl.getBoundingClientRect().top - container.getBoundingClientRect().top - 64);
+  if (Math.abs(to - from) < 1) return;
+  var startTime = performance.now();
+  function tick(now) {
+    var t = Math.min((now - startTime) / duration, 1);
+    container.scrollTop = from + (to - from) * oooEase(t);
     if (t < 1) requestAnimationFrame(tick);
   }
   requestAnimationFrame(tick);
@@ -530,7 +542,10 @@ function PTOTrackerApp() {
   useEffect(function() {
     if (!loaded) return;
     var id = requestAnimationFrame(function() {
-      requestAnimationFrame(function() { setFadeIn(true); });
+      requestAnimationFrame(function() {
+        setFadeIn(true);
+        smoothScrollTo(calendarScrollRef.current, document.getElementById("month-current"), 600);
+      });
     });
     return function() { cancelAnimationFrame(id); };
   }, [loaded]);
@@ -1259,10 +1274,10 @@ function PTOTrackerApp() {
       cellBg = "transparent";
       cellColor = C.textDim;
     } else if (hol) {
-      cellBg = isPast ? "#F8F8F8" : "#FFF200";
+      cellBg = isPast ? "#F8F8F8" : "#FCF937";
       cellColor = C.text;
     } else if (otherHol) {
-      cellBg = isPast ? "#FFFFFF" : "#FAF8E2";
+      cellBg = isPast ? "#FFFFFF" : "#FBF9E2";
       cellColor = C.text;
     } else if (wk) {
       cellBg = C.weekend;
@@ -1641,8 +1656,9 @@ function PTOTrackerApp() {
                 );
               }
 
+              var isCurrentMonth = viewYear === new Date().getFullYear() && mi === new Date().getMonth();
               return (
-                <div key={mName}>
+                <div key={mName} id={isCurrentMonth ? "month-current" : undefined}>
                   <div style={{ fontFamily: goudy, fontStyle: "italic", fontSize: 22, color: C.text, marginBottom: 24 }}>
                     {mName}
                   </div>
