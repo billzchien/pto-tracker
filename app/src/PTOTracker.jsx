@@ -590,6 +590,9 @@ function PTOTrackerApp() {
   var [writeSelectedGroups, setWriteSelectedGroups] = useState([]);
   var [approvedGroups, setApprovedGroups] = useState({});
   var [lockedDates, setLockedDates] = useState({});
+  var [weekStart, setWeekStart] = useState("sunday");
+  var [showHolidays, setShowHolidays] = useState("acn");
+  var [calFading, setCalFading] = useState(false);
   // Derived — no state needed
   var historyRef = useRef([]);
   var daysRef = useRef(days);
@@ -600,7 +603,8 @@ function PTOTrackerApp() {
   function persistSettings(overrides) {
     var data = {
       bal: bal, balDate: balDate, userName: userName, editCL: editCL,
-      approvedGroups: approvedGroups, lockedDates: lockedDates, startStr: startStr
+      approvedGroups: approvedGroups, lockedDates: lockedDates, startStr: startStr,
+      weekStart: weekStart, showHolidays: showHolidays
     };
     if (overrides) Object.assign(data, overrides);
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); } catch(e) {}
@@ -668,6 +672,8 @@ function PTOTrackerApp() {
           if (p2.approvedGroups) setApprovedGroups(p2.approvedGroups);
           if (p2.lockedDates) setLockedDates(p2.lockedDates);
           if (p2.startStr) setStartStr(p2.startStr);
+          if (p2.weekStart) setWeekStart(p2.weekStart);
+          if (p2.showHolidays) setShowHolidays(p2.showHolidays);
         }
         if (result.storedName) setUserName(result.storedName);
       } catch(e) {}
@@ -696,7 +702,7 @@ function PTOTrackerApp() {
 
   useEffect(function() {
     if (!loaded) return;
-    var data = { bal: bal, balDate: balDate, userName: userName, editCL: editCL, approvedGroups: approvedGroups, lockedDates: lockedDates, startStr: startStr };
+    var data = { bal: bal, balDate: balDate, userName: userName, editCL: editCL, approvedGroups: approvedGroups, lockedDates: lockedDates, startStr: startStr, weekStart: weekStart, showHolidays: showHolidays };
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
       localStorage.setItem("bill-pto-userName", userName);
@@ -709,7 +715,7 @@ function PTOTrackerApp() {
       userChangedSettingsRef.current = false;
       supabase.from('pto_settings').upsert({ id: 1, data: data }).then(function() {});
     }
-  }, [bal, balDate, loaded, userName, editCL, approvedGroups, lockedDates, startStr]);
+  }, [bal, balDate, loaded, userName, editCL, approvedGroups, lockedDates, startStr, weekStart, showHolidays]);
 
   // Sync edit fields when settings tab opens
   useEffect(function() {
@@ -1235,7 +1241,7 @@ function PTOTrackerApp() {
     var key = dkey(year, month, day);
     var type = days[key] || "";
     var hol = isHol(key);
-    var otherHol = !hol && !type && isOtherHol(key);
+    var otherHol = !hol && !type && isOtherHol(key) && showHolidays !== "acn";
     var wk = isWknd(year, month, day);
     var isAct = active === key;
     var isPreview = previewDates.indexOf(key) !== -1;
@@ -1273,11 +1279,8 @@ function PTOTrackerApp() {
     } else if (type === "UNPAID") {
       cellBg = "transparent";
       cellColor = C.textDim;
-    } else if (hol) {
+    } else if (hol || otherHol) {
       cellBg = isPast ? "#F8F8F8" : "#FCF937";
-      cellColor = C.text;
-    } else if (otherHol) {
-      cellBg = isPast ? "#FFFFFF" : "#FBF9E2";
       cellColor = C.text;
     } else if (wk) {
       cellBg = C.weekend;
@@ -1620,11 +1623,13 @@ function PTOTrackerApp() {
             display: "grid",
             gridTemplateColumns: "repeat(auto-fill, minmax(max(260px, calc(25% - 36px)), 1fr))",
             gap: "48px 48px",
+            opacity: calFading ? 0 : 1,
+            transition: "opacity 150ms cubic-bezier(0.4, 0, 0, 1)",
           }}>
             {MONTHS.map(function(mName, mi) {
               var dim = daysIn(viewYear, mi);
               var fd = dayOfWeek(viewYear, mi, 1);
-              var mondayOffset = fd === 0 ? 6 : fd - 1;
+              var mondayOffset = weekStart === "sunday" ? fd : (fd === 0 ? 6 : fd - 1);
 
               // Build cells with prev/next month dates
               var cells = [];
@@ -1664,7 +1669,7 @@ function PTOTrackerApp() {
                   </div>
                   {/* Weekday headers */}
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 8, marginBottom: 4 }}>
-                    {["M","T","W","T","F","S","S"].map(function(w, wi) {
+                    {(weekStart === "sunday" ? ["S","M","T","W","T","F","S"] : ["M","T","W","T","F","S","S"]).map(function(w, wi) {
                       return <div key={wi} style={{ display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontFamily: work, fontWeight: 500, color: C.textSec, textTransform: "uppercase", padding: "4px 0" }}>{w}</div>;
                     })}
                   </div>
@@ -1907,13 +1912,11 @@ function PTOTrackerApp() {
               return (
                 <div style={{ paddingTop: isMobile ? 28 : 40 }}>
                   {availSizes.length === 0 ? (
-                    <div style={{ background: C.surface, borderRadius: 16, padding: "20px 20px 24px" }}>
-                      <div style={{ fontFamily: work, fontSize: 12, color: C.textSec }}>No opportunities available with your current balance.</div>
-                    </div>
+                    <div style={{ fontFamily: work, fontSize: 12, color: C.textSec, lineHeight: 1.4 }}>No opportunities available with your current balance.</div>
                   ) : (
                     <div>
                       {/* Single container card: Days Off + slider */}
-                      <div style={{ background: C.surface, borderRadius: 12, padding: "14px 14px 20px", marginBottom: 8 }}>
+                      <div style={{ background: C.surface, borderRadius: 16, padding: "14px 14px 20px", marginBottom: 8 }}>
                         <div style={{ fontFamily: work, fontSize: 12, color: C.textSec, marginBottom: 16 }}>Days off</div>
                         {/* Numbers row */}
                         <div style={{ position: "relative", height: 26, marginBottom: 14 }}>
@@ -1933,7 +1936,7 @@ function PTOTrackerApp() {
                       </div>
                       {/* Opportunity cards — no section header */}
                       {currentOpps.length > 0 ? (
-                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 4 }}>
                           {currentOpps.map(function(o) {
                             var isPreviewing = o.ptoDates.length > 0 && o.ptoDates.every(function(d) { return previewDates.indexOf(d) !== -1; });
                             var sp = (o.effectiveStart || o.startDate || o.date).split("-");
@@ -1956,8 +1959,8 @@ function PTOTrackerApp() {
                                     var oppYear = parseInt(o.date.split("-")[0]); if (oppYear !== viewYear) setViewYear(oppYear);
                                   }
                                 }}
-                                style={{ background: C.surface, borderRadius: 12, padding: 14, cursor: "pointer", border: isPreviewing ? "0.5px solid " + C.textSec : "0.5px solid transparent" }}>
-                                <div style={{ fontFamily: work, fontSize: 12, color: C.text, marginBottom: 3 }}>{dateRange}</div>
+                                style={{ background: C.surface, borderRadius: 16, padding: 16, cursor: "pointer", border: isPreviewing ? "0.5px solid " + C.textSec : "0.5px solid transparent" }}>
+                                <div style={{ fontFamily: work, fontSize: 14, color: C.text, marginBottom: 8 }}>{dateRange}</div>
                                 {(function() {
                                   var existing = o.alreadyPlannedInSpan || [];
                                   var existingPTO = existing.filter(function(d) { return days[d] === "PLAN"; }).length;
@@ -1975,9 +1978,7 @@ function PTOTrackerApp() {
                           })}
                         </div>
                       ) : (
-                        <div style={{ background: C.surface, borderRadius: 12, padding: 14 }}>
-                          <div style={{ fontFamily: work, fontSize: 12, color: C.textSec }}>No opportunities for {effectiveDays} days off.</div>
-                        </div>
+                        <div style={{ fontFamily: work, fontSize: 12, color: C.textSec, lineHeight: 1.4 }}>No opportunities for {effectiveDays} days off.</div>
                       )}
                     </div>
                   )}
@@ -1991,17 +1992,17 @@ function PTOTrackerApp() {
                 {/* INFO section — first: no top border */}
                 <div style={{ marginBottom: 64 }}>
                   <div style={{ fontFamily: work, fontSize: 11, textTransform: "uppercase", color: C.textSec, letterSpacing: 0.5, marginBottom: 12 }}>Info</div>
-                  <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
-                    <div style={{ flex: 1, background: C.surface, borderRadius: 12, padding: 14, border: focusedField === "name" ? "0.5px solid " + C.textSec : "0.5px solid transparent" }}>
-                      <div style={{ fontFamily: work, fontSize: 11, color: C.textSec, marginBottom: 6 }}>Name</div>
+                  <div style={{ display: "flex", gap: 4, marginBottom: 4 }}>
+                    <div style={{ flex: 1, background: C.surface, borderRadius: 16, padding: 16, border: focusedField === "name" ? "0.5px solid " + C.textSec : "0.5px solid transparent" }}>
+                      <div style={{ fontFamily: work, fontSize: 11, color: C.textSec, marginBottom: 8 }}>Name</div>
                       <input type="text" value={editName}
                         onChange={function(e) { setEditName(e.target.value); setSettingsDirty(true); }}
                         onFocus={function() { setFocusedField("name"); }}
                         onBlur={function() { setFocusedField(null); }}
                         style={{ border: "none", outline: "none", fontFamily: work, fontSize: 14, fontWeight: 500, width: "100%", background: "transparent", color: C.text }} />
                     </div>
-                    <div style={{ flex: 1, background: C.surface, borderRadius: 12, padding: 14, border: focusedField === "cl" ? "0.5px solid " + C.textSec : "0.5px solid transparent" }}>
-                      <div style={{ fontFamily: work, fontSize: 11, color: C.textSec, marginBottom: 6 }}>Management Level</div>
+                    <div style={{ flex: 1, background: C.surface, borderRadius: 16, padding: 16, border: focusedField === "cl" ? "0.5px solid " + C.textSec : "0.5px solid transparent" }}>
+                      <div style={{ fontFamily: work, fontSize: 11, color: C.textSec, marginBottom: 8 }}>Management Level</div>
                       <input type="text" value={editCL}
                         onChange={function(e) { setEditCL(e.target.value); setSettingsDirty(true); }}
                         onFocus={function() { setFocusedField("cl"); }}
@@ -2009,8 +2010,8 @@ function PTOTrackerApp() {
                         style={{ border: "none", outline: "none", fontFamily: work, fontSize: 14, fontWeight: 500, width: "100%", background: "transparent", color: C.text }} />
                     </div>
                   </div>
-                  <div style={{ background: C.surface, borderRadius: 12, padding: 14, border: focusedField === "milestone" ? "0.5px solid " + C.textSec : "0.5px solid transparent" }}>
-                    <div style={{ fontFamily: work, fontSize: 11, color: C.textSec, marginBottom: 6 }}>Starting Date</div>
+                  <div style={{ background: C.surface, borderRadius: 16, padding: 16, border: focusedField === "milestone" ? "0.5px solid " + C.textSec : "0.5px solid transparent" }}>
+                    <div style={{ fontFamily: work, fontSize: 11, color: C.textSec, marginBottom: 8 }}>Starting Date</div>
                     <DateField value={editStart} isFocused={focusedField === "milestone"}
                       onChange={function(v) { setEditStart(v); setSettingsDirty(true); }}
                       onFocus={function() { setFocusedField("milestone"); }}
@@ -2021,21 +2022,57 @@ function PTOTrackerApp() {
                 {/* CURRENT BALANCE section */}
                 <div style={{ borderTop: "0.5px solid " + C.border, paddingTop: 8, marginBottom: 64 }}>
                   <div style={{ fontFamily: work, fontSize: 11, textTransform: "uppercase", color: C.textSec, letterSpacing: 0.5, marginBottom: 12 }}>Current Balance</div>
-                  <div style={{ display: "flex", gap: 8 }}>
-                    <div style={{ flex: 1, background: C.surface, borderRadius: 12, padding: 14, border: focusedField === "bal" ? "0.5px solid " + C.textSec : "0.5px solid transparent" }}>
-                      <div style={{ fontFamily: work, fontSize: 11, color: C.textSec, marginBottom: 6 }}>Hours</div>
+                  <div style={{ display: "flex", gap: 4 }}>
+                    <div style={{ flex: 1, background: C.surface, borderRadius: 16, padding: 16, border: focusedField === "bal" ? "0.5px solid " + C.textSec : "0.5px solid transparent" }}>
+                      <div style={{ fontFamily: work, fontSize: 11, color: C.textSec, marginBottom: 8 }}>Hours</div>
                       <input type="number" value={editBal}
                         onChange={function(e) { setEditBal(parseFloat(e.target.value) || 0); setSettingsDirty(true); }}
                         onFocus={function() { setFocusedField("bal"); }}
                         onBlur={function() { setFocusedField(null); }}
                         style={{ border: "none", outline: "none", fontFamily: work, fontSize: 14, fontWeight: 500, width: "100%", background: "transparent", color: C.text }} />
                     </div>
-                    <div style={{ flex: 1, background: C.surface, borderRadius: 12, padding: 14, border: focusedField === "balDate" ? "0.5px solid " + C.textSec : "0.5px solid transparent" }}>
-                      <div style={{ fontFamily: work, fontSize: 11, color: C.textSec, marginBottom: 6 }}>As of Date</div>
+                    <div style={{ flex: 1, background: C.surface, borderRadius: 16, padding: 16, border: focusedField === "balDate" ? "0.5px solid " + C.textSec : "0.5px solid transparent" }}>
+                      <div style={{ fontFamily: work, fontSize: 11, color: C.textSec, marginBottom: 8 }}>As of Date</div>
                       <DateField value={editBalDate} isFocused={focusedField === "balDate"}
                         onChange={function(v) { setEditBalDate(v); setSettingsDirty(true); }}
                         onFocus={function() { setFocusedField("balDate"); }}
                         onBlur={function() { setFocusedField(null); }} />
+                    </div>
+                  </div>
+                </div>
+
+                {/* CALENDAR VIEW section */}
+                <div style={{ borderTop: "0.5px solid " + C.border, paddingTop: 8, marginBottom: 64 }}>
+                  <div style={{ fontFamily: work, fontSize: 11, textTransform: "uppercase", color: C.textSec, letterSpacing: 0.5, marginBottom: 12 }}>Calendar View</div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                    <div
+                      onClick={function() {
+                        var next = weekStart === "monday" ? "sunday" : "monday";
+                        setCalFading(true);
+                        setTimeout(function() {
+                          setWeekStart(next);
+                          persistSettings({ weekStart: next });
+                          userChangedSettingsRef.current = true;
+                          setCalFading(false);
+                        }, 150);
+                      }}
+                      style={{ background: C.surface, borderRadius: 16, padding: 16, cursor: "pointer" }}>
+                      <div style={{ fontFamily: work, fontSize: 11, color: C.textSec, marginBottom: 8 }}>Week starts on</div>
+                      <div style={{ fontFamily: work, fontSize: 14 }}>
+                        <span style={{ color: weekStart === "sunday" ? C.text : C.textSec, fontWeight: weekStart === "sunday" ? 500 : 400 }}>Sunday</span>
+                        <span style={{ color: C.textSec, margin: "0 4px", fontWeight: 400 }}>/</span>
+                        <span style={{ color: weekStart === "monday" ? C.text : C.textSec, fontWeight: weekStart === "monday" ? 500 : 400 }}>Monday</span>
+                      </div>
+                    </div>
+                    <div
+                      onClick={function() { var next = showHolidays === "all" ? "acn" : "all"; setShowHolidays(next); persistSettings({ showHolidays: next }); userChangedSettingsRef.current = true; }}
+                      style={{ background: C.surface, borderRadius: 16, padding: 16, cursor: "pointer" }}>
+                      <div style={{ fontFamily: work, fontSize: 11, color: C.textSec, marginBottom: 8 }}>Show US Holidays</div>
+                      <div style={{ fontFamily: work, fontSize: 14 }}>
+                        <span style={{ color: showHolidays === "acn" ? C.text : C.textSec, fontWeight: showHolidays === "acn" ? 500 : 400 }}>ACN only</span>
+                        <span style={{ color: C.textSec, margin: "0 4px", fontWeight: 400 }}>/</span>
+                        <span style={{ color: showHolidays === "all" ? C.text : C.textSec, fontWeight: showHolidays === "all" ? 500 : 400 }}>All holidays</span>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -2045,13 +2082,12 @@ function PTOTrackerApp() {
             {/* Write Tab */}
             {panelTab === "write" ? (
               <div style={{ paddingTop: isMobile ? 28 : 40 }}>
-                <div style={{ fontFamily: work, fontSize: 11, textTransform: "uppercase", color: C.textSec, letterSpacing: 0.5, marginBottom: 16 }}>Planned Dates</div>
                 {writePlanGroups.length === 0 ? (
-                  <div style={{ background: C.surface, borderRadius: 12, padding: "16px 20px" }}>
-                    <div style={{ fontFamily: work, fontSize: 12, color: C.textSec }}>No planned dates yet.</div>
-                  </div>
+                  <div style={{ fontFamily: work, fontSize: 12, color: C.textSec, lineHeight: 1.4 }}>No planned dates yet.</div>
                 ) : (
-                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  <div>
+                  <div style={{ fontFamily: work, fontSize: 11, textTransform: "uppercase", color: C.textSec, letterSpacing: 0.5, marginBottom: 16 }}>Planned Dates</div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
                     {writePlanGroups.map(function(group, idx) {
                       var isSelected = writeSelectedGroups.indexOf(idx) !== -1;
                       var isApproved = !!approvedGroups[group[0]];
@@ -2114,13 +2150,13 @@ function PTOTrackerApp() {
                           }}
                           style={{
                             background: isApproved ? "#ADFF55" : C.surface,
-                            borderRadius: 12, padding: "14px 16px",
+                            borderRadius: 16, padding: "14px 16px",
                             display: "flex", alignItems: "center", justifyContent: "space-between",
                             cursor: isApproved ? "default" : "pointer",
                             border: isSelected ? "0.5px solid " + C.textSec : "0.5px solid transparent",
                           }}>
                           <div>
-                            <div style={{ fontFamily: work, fontSize: 12, color: C.text, marginBottom: 3 }}>{dateRange}</div>
+                            <div style={{ fontFamily: work, fontSize: 14, color: C.text, marginBottom: 8 }}>{dateRange}</div>
                             <div style={{ fontFamily: work, fontSize: 12, color: C.textSec }}>{subtitle.join(", ")}</div>
                           </div>
                           <div style={{
@@ -2139,13 +2175,14 @@ function PTOTrackerApp() {
                       );
                     })}
                   </div>
+                  </div>
                 )}
 
                 {writeSelectedGroups.length > 0 && writePlanGroups.length > 0 ? (
                   <div style={{ marginTop: 64 }}>
                     <div style={{ height: "0.5px", background: C.border, marginBottom: 8 }} />
                     <div style={{ fontFamily: work, fontSize: 11, textTransform: "uppercase", color: C.textSec, letterSpacing: 0.5, marginBottom: 16 }}>Text</div>
-                    <div style={{ background: C.surface, borderRadius: 12, padding: "16px 20px", userSelect: "text" }}>
+                    <div style={{ background: C.surface, borderRadius: 16, padding: "16px 20px", userSelect: "text" }}>
                       {generateEmailText().split("\n").map(function(line, i) {
                         var isYearLine = /^\d{4}$/.test(line);
                         var isDateLine = !isYearLine && writeSelectedGroups.some(function(idx) {

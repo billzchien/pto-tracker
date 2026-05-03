@@ -27,7 +27,10 @@
       "Bash(/opt/homebrew/bin/gh repo *)",
       "Bash(git *)",
       "Skill(update-config)",
-      "Skill(update-config:*)"
+      "Skill(update-config:*)",
+      "Bash(node --input-type=module --eval ' *)",
+      "Bash(find . -name \"*.sql\" -not -path \"*/node_modules/*\")",
+      "Bash(grep -rn \"lockedDates\" app/src/)"
     ]
   }
 }
