@@ -58,39 +58,44 @@ Leave days are stored in the `days` object (keyed by `YYYY-MM-DD` strings):
 
 ## Panel tabs
 
+(Internal keys in parens — used in code. Tab labels in the UI are the bold names.)
+
 | Tab | Purpose |
 |-----|---------|
-| **RECO** | Suggests break opportunities around holidays; preview + apply to calendar |
-| **WRITE** | Draft approval email from planned dates; copy to clipboard |
-| **BALANCE** | Current balance, accrual rates, used days |
-| **SETTINGS** | Name, career level, 5th year milestone, snapshot balance |
+| **PLAN** (`reco`) | Suggests break opportunities around holidays; preview + apply to calendar |
+| **DRAFT** (`write`) | Draft approval email from planned dates; copy to clipboard |
+| **BALANCE** (`overview`) | Current balance, accrual rates, used days |
+| **SETTINGS** (`settings`) | Name, management level, service start date, snapshot balance, calendar view (week start, US holidays scope) |
 
-### Write tab details
+### Draft tab details
 - Future `PLAN`/`PLAN_CUL` dates are grouped into consecutive blocks (weekends and holidays between planned days don't break a group).
 - Each group is a selectable row — checked by default. Unchecking removes it from the email draft.
-- Clicking a row scrolls the calendar to those dates and highlights them with a `#84B400` border ring on top of the lime green fill.
-- The TEXT section renders a ready-to-send email with each selected date range on its own bold line.
-- **COPY** button copies the plain-text email to the clipboard.
+- Clicking a row scrolls the calendar to those dates and highlights them with an `S.unpaid` (`#70D900`) border ring on top of the lime-green fill.
+- The **Text** section renders a ready-to-send email with each selected date range on its own bold line.
+- **Copy** button (sticky footer CTA) copies the plain-text email to the clipboard and toasts "Copied!".
 
 ## Visual legend
 
-- Lime green background: planned PTO (`PLAN`)
-- Yellow background: planned cultural day (`PLAN_CUL`)
-- Beige background: used day (`PTO` / `CUL`)
-- Red background: planned PTO that exceeds balance
-- Dashed lime green circle: planned unpaid leave (`PLAN_UNPAID`)
-- Dashed gray circle: used unpaid leave (`UNPAID`)
+- Lime green fill (`S.pto`): planned PTO (`PLAN`)
+- Yellow fill (`S.cul`): planned cultural day (`PLAN_CUL`)
+- Coral fill (`S.ptoOver`): planned PTO that exceeds balance
+- Bright yellow fill (`S.holiday`): future holiday cell
+- Gray fill (`S.surfaceAlt`): weekend cells, past-holiday cells, past PTO/CUL cells (all unified)
+- Dashed lime stroke (`S.unpaid`): planned unpaid leave (`PLAN_UNPAID`)
+- Dashed gray stroke: used unpaid leave (`UNPAID`)
+- `S.unpaid` ring: highlight on calendar cells when a Draft-tab group is clicked
 
 ## Business logic
 
 ### Key constants
 ```js
-ACCRUAL_RATE_PRE5  = 7.0    // hrs/pay period before 5yr milestone
-ACCRUAL_RATE_POST5 = 7.67   // hrs/pay period after Aug 2, 2026
-MILESTONE_DATE     = Aug 2, 2026
-HOURS_PER_DAY      = 8
-CARRYOVER_CAP      = 200    // max hrs carrying to next FY
-CUL_DAYS_TOTAL     = 2      // cultural days per calendar year
+ACCRUAL_RATE_PRE5   = 7.0    // hrs/pay period before 5yr milestone
+ACCRUAL_RATE_POST5  = 7.67   // hrs/pay period from 5yr to 10yr milestone
+ACCRUAL_RATE_POST10 = 8.33   // hrs/pay period after 10yr milestone
+MILESTONE_DATE      = Aug 2, 2026  // Bill's 5-year mark (start + 5y); 10yr is start + 10y
+HOURS_PER_DAY       = 8
+CARRYOVER_CAP       = 200    // hard-coded as Math.min(...,200) — max hrs carrying to next FY
+CUL_DAYS_TOTAL      = 2      // cultural days per calendar year
 FY boundary: Sep 1 – Aug 31
 ```
 
@@ -101,9 +106,9 @@ FY boundary: Sep 1 – Aug 31
 Unpaid leave days are excluded from all balance calculations.
 
 ### Smart logic
-- Dynamic PLAN colors: green if projected balance covers it, red if not feasible.
+- Dynamic PLAN colors: lime if projected balance covers it, coral if not feasible.
 - Year-aware stats: switching years recalculates everything.
-- 5-year milestone: accrual rate auto-bumps after Aug 2, 2026.
+- Service-year milestones: accrual rate bumps to 7.67 at 5 years (Aug 2, 2026 for Bill) and 8.33 at 10 years.
 - FY rollover: caps balance at 200 hrs when crossing Aug 31.
 - Feasibility checking per planned date based on projected accruals.
 
@@ -114,15 +119,32 @@ Unpaid leave days are excluded from all balance calculations.
 - `Work Sans` — all UI text, labels, buttons
 - `Sorts Mill Goudy` — user name in panel header (italic serif)
 
-**Colors:**
+**Colors:** Two-tier system — primitives (`P`) hold raw values, semantic tokens (`S`) reference them. Re-themes only need to swap `P`.
+
 ```js
-bg: "#FFFFFF"        panelBg: "#F8F8F8"    surface: "#FFFFFF"
-border: "#E3E3E3"    text: "#000000"       textSec: "#757575"
-textDim: "#505050"   pto: "#D4F773"        cul: "#F4FD7A"
-used: "#F5F4F0"      today: "#000000"      todayText: "#FFFFFF"
-weekend: "#F8F8F8"   neg: "#DB2223"        negBg: "#FFD3D3"
-unpaid: "#85B500"
+// Primitives
+P.white "#FFFFFF"   P.gray05 "#F8F8F8"   P.gray15 "#E3E3E3"
+P.gray25 "#CECECE"  P.gray45 "#757575"   P.black "#000000"
+P.lime "#ADFF55"    P.limeDeep "#70D900" P.yellow "#D9FF00"
+P.yellowHi "#FCF937" P.coral "#FF715B"
+P.maroon "#400000"
+
+// Semantic
+S.bg / S.surface          → P.white     // page bg, cards, popovers, inputs
+S.surfaceAlt              → P.gray05    // panel bg, weekend cells, past-holiday cells, past PTO/CUL cells
+S.border                  → P.gray15    // all dividers and strokes
+S.text                    → P.black     // primary text, today indicator
+S.textSubtle              → P.gray45    // labels, captions, focus outlines, chevrons, past-day numerals
+S.textFaint               → P.gray25    // PLAN slider min/max
+S.today / S.todayText     → P.black / P.white
+S.pto                     → P.lime      // planned PTO fill
+S.ptoOver / S.ptoOverText → P.coral / P.maroon  // over-balance fill + text
+S.cul                     → P.yellow    // cultural day
+S.holiday                 → P.yellowHi  // holiday cell (future)
+S.unpaid                  → P.limeDeep  // unpaid stroke + WRITE highlight ring
 ```
+
+Known still-hardcoded values: shadow `rgba(0,0,0,0.08)`, spinner track `rgba(0,0,0,0.15)`, slider thumb shadow `rgba(0,0,0,0.12)`, panel-fade gradient `rgba(248,248,248,...)` (must stay in sync with `S.surfaceAlt` if re-themed).
 
 **Layout:**
 - Sticky header: balance stats + year nav + panel toggle + divider

@@ -82,24 +82,43 @@ var grotesk = "'Space Grotesk', sans-serif";
 var work = "'Work Sans', sans-serif";
 var goudy = "'Sorts Mill Goudy', serif";
 
-var C = {
-  bg: "#FFFFFF",
-  panelBg: "#F8F8F8",
-  surface: "#FFFFFF",
-  border: "#E3E3E3",
-  text: "#000000",
-  textSec: "#757575",
-  textDim: "#505050",
-  pto: "#ADFF55",
-  cul: "#D9FF00",
-  hol: "#D9FF00",
-  used: "#FBFCFB",
-  today: "#000000",
-  todayText: "#FFFFFF",
-  weekend: "#F8F8F8",
-  neg: "#400000",
-  negBg: "#FF715B",
-  unpaid: "#70D900",
+// Primitives — raw values. Swap these to re-theme.
+var P = {
+  white:    "#FFFFFF",
+  gray05:   "#F8F8F8",
+  gray15:   "#E3E3E3",
+  gray25:   "#CECECE",
+  gray45:   "#757575",
+  black:    "#000000",
+
+  lime:     "#ADFF55",
+  limeDeep: "#70D900",
+  yellow:   "#D9FF00",
+  yellowHi: "#FCF937",
+  coral:    "#FF715B",
+  maroon:   "#400000",
+};
+
+// Semantic tokens — what each color means in the UI.
+var S = {
+  bg:          P.white,
+  surface:     P.white,
+  surfaceAlt:  P.gray05,
+  border:      P.gray15,
+
+  text:        P.black,
+  textSubtle:  P.gray45,
+  textFaint:   P.gray25,
+
+  today:       P.black,
+  todayText:   P.white,
+
+  pto:         P.lime,
+  ptoOver:     P.coral,
+  ptoOverText: P.maroon,
+  cul:         P.yellow,
+  holiday:     P.yellowHi,
+  unpaid:      P.limeDeep,
 };
 
 function DateField({ value, onChange, onFocus, onBlur, isFocused }) {
@@ -128,8 +147,8 @@ function DateField({ value, onChange, onFocus, onBlur, isFocused }) {
     if (!containerRef.current.contains(e.relatedTarget)) onBlur && onBlur();
   }
 
-  var seg = { border: "none", outline: "none", fontFamily: work, fontSize: 14, fontWeight: 500, background: "transparent", color: C.text, textAlign: "center", padding: 0 };
-  var sep = { fontFamily: work, fontSize: 14, fontWeight: 400, color: C.textSec, userSelect: "none" };
+  var seg = { border: "none", outline: "none", fontFamily: work, fontSize: 14, fontWeight: 500, background: "transparent", color: S.text, textAlign: "center", padding: 0 };
+  var sep = { fontFamily: work, fontSize: 14, fontWeight: 400, color: S.textSubtle, userSelect: "none" };
 
   return (
     <div ref={containerRef} onFocus={handleContainerFocus} onBlur={handleContainerBlur}
@@ -404,7 +423,7 @@ function LockScreen({ onUnlock }) {
 
   return (
     <div onClick={focusInput} style={{
-      position: 'fixed', inset: 0, background: C.bg, zIndex: 9999,
+      position: 'fixed', inset: 0, background: S.bg, zIndex: 9999,
       display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
     }}>
       <style>{'@keyframes lockSpin { to { transform: rotate(360deg); } }'}</style>
@@ -421,7 +440,7 @@ function LockScreen({ onUnlock }) {
       <div style={{
         marginBottom: 40,
         fontFamily: work, fontSize: 12, fontWeight: 600,
-        textTransform: 'uppercase', letterSpacing: 1, color: C.text,
+        textTransform: 'uppercase', letterSpacing: 1, color: S.text,
         opacity: isAnimating ? 0 : 1,
         transition: phase === 'collapsing' ? 'opacity 250ms cubic-bezier(0.4,0,0,1)' : 'none',
         userSelect: 'none',
@@ -433,7 +452,7 @@ function LockScreen({ onUnlock }) {
           return (
             <div key={i} onClick={function(e) { e.stopPropagation(); focusInput(); }} style={{
               width: 48, height: 48, borderRadius: 999,
-              background: C.panelBg,
+              background: S.surfaceAlt,
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               flexShrink: 0,
               transform: isAnimating ? 'translateX(' + collapseX[i] + 'px)' : 'translateX(0)',
@@ -443,7 +462,7 @@ function LockScreen({ onUnlock }) {
                 : 'none',
             }}>
               {digits[i] && (
-                <span style={{ fontFamily: grotesk, fontWeight: 500, fontSize: 20, color: C.text, userSelect: 'none' }}>
+                <span style={{ fontFamily: grotesk, fontWeight: 500, fontSize: 20, color: S.text, userSelect: 'none' }}>
                   {digits[i]}
                 </span>
               )}
@@ -454,7 +473,7 @@ function LockScreen({ onUnlock }) {
         {/* Arrow / confirm button */}
         <div onClick={function(e) { e.stopPropagation(); handleSubmit(); }} style={{
           width: 48, height: 48, borderRadius: 999,
-          background: (isAnimating || hasAny) ? C.pto : C.panelBg,
+          background: (isAnimating || hasAny) ? S.pto : S.surfaceAlt,
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           cursor: isComplete ? 'pointer' : 'default',
           flexShrink: 0,
@@ -471,11 +490,11 @@ function LockScreen({ onUnlock }) {
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none"
               style={{ animation: 'lockSpin 700ms linear infinite' }}>
               <circle cx="8" cy="8" r="5.5" stroke="rgba(0,0,0,0.15)" strokeWidth="1"/>
-              <path d="M8 2.5 A5.5 5.5 0 0 1 13.5 8" stroke={C.text} strokeWidth="1" strokeLinecap="round"/>
+              <path d="M8 2.5 A5.5 5.5 0 0 1 13.5 8" stroke={S.text} strokeWidth="1" strokeLinecap="round"/>
             </svg>
           ) : (
             <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-              <path d="M5 2L10 7L5 12" stroke={C.textDim} strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"/>
+              <path d="M5 2L10 7L5 12" stroke={S.textSubtle} strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"/>
             </svg>
           )}
         </div>
@@ -593,8 +612,10 @@ function PTOTrackerApp() {
   var [weekStart, setWeekStart] = useState("sunday");
   var [showHolidays, setShowHolidays] = useState("acn");
   var [calFading, setCalFading] = useState(false);
+  var [modKeyDown, setModKeyDown] = useState(false);
   // Derived — no state needed
   var historyRef = useRef([]);
+  var redoRef = useRef([]);
   var daysRef = useRef(days);
   var calendarScrollRef = useRef(null);
 
@@ -626,17 +647,41 @@ function PTOTrackerApp() {
 
   useEffect(function() {
     function onKeyDown(e) {
-      if (e.metaKey && e.key === "z" && !e.shiftKey) {
+      if (e.metaKey && (e.key === "z" || e.key === "Z")) {
         e.preventDefault();
-        if (historyRef.current.length > 0) {
-          var prev = historyRef.current[historyRef.current.length - 1];
-          historyRef.current = historyRef.current.slice(0, -1);
-          setDays(prev);
+        if (e.shiftKey) {
+          if (redoRef.current.length > 0) {
+            var nextState = redoRef.current[redoRef.current.length - 1];
+            redoRef.current = redoRef.current.slice(0, -1);
+            historyRef.current = historyRef.current.slice(-19).concat([Object.assign({}, daysRef.current)]);
+            setDays(nextState);
+          }
+        } else {
+          if (historyRef.current.length > 0) {
+            var prev = historyRef.current[historyRef.current.length - 1];
+            historyRef.current = historyRef.current.slice(0, -1);
+            redoRef.current = redoRef.current.slice(-19).concat([Object.assign({}, daysRef.current)]);
+            setDays(prev);
+          }
         }
       }
     }
     window.addEventListener("keydown", onKeyDown);
     return function() { window.removeEventListener("keydown", onKeyDown); };
+  }, []);
+
+  useEffect(function() {
+    function onDown(e) { if (e.altKey) setModKeyDown(true); }
+    function onUp(e) { if (!e.altKey) setModKeyDown(false); }
+    function onBlur() { setModKeyDown(false); }
+    window.addEventListener("keydown", onDown);
+    window.addEventListener("keyup", onUp);
+    window.addEventListener("blur", onBlur);
+    return function() {
+      window.removeEventListener("keydown", onDown);
+      window.removeEventListener("keyup", onUp);
+      window.removeEventListener("blur", onBlur);
+    };
   }, []);
 
 
@@ -760,6 +805,7 @@ function PTOTrackerApp() {
 
   var pushHistory = useCallback(function() {
     historyRef.current = historyRef.current.slice(-19).concat([Object.assign({}, daysRef.current)]);
+    redoRef.current = [];
   }, []);
 
   var toggle = useCallback(function(key, type) {
@@ -1250,51 +1296,51 @@ function PTOTrackerApp() {
     var isPast = new Date(year, month, day) < new Date(now.getFullYear(), now.getMonth(), now.getDate());
     // Determine cell style
     var cellBg = "transparent";
-    var cellColor = C.text;
+    var cellColor = S.text;
     var cellBorder = "none";
 
     if (isToday) {
-      cellBg = C.today;
-      cellColor = C.todayText;
+      cellBg = S.today;
+      cellColor = S.todayText;
     } else if (type === "PTO" || type === "CUL") {
-      // Used days (past)
-      cellBg = C.used;
-      cellColor = C.text;
+      // Used days (past) — match past-weekend treatment
+      cellBg = S.surfaceAlt;
+      cellColor = S.text;
     } else if (type === "PLAN") {
       // Check feasibility
       var feas = stats.feasibility[key];
       if (feas === false) {
-        cellBg = C.negBg;
-        cellColor = C.neg;
+        cellBg = S.ptoOver;
+        cellColor = S.ptoOverText;
       } else {
-        cellBg = C.pto;
-        cellColor = C.text;
+        cellBg = S.pto;
+        cellColor = S.text;
       }
     } else if (type === "PLAN_CUL") {
-      cellBg = C.cul;
-      cellColor = C.text;
+      cellBg = S.cul;
+      cellColor = S.text;
     } else if (type === "PLAN_UNPAID") {
       cellBg = "transparent";
-      cellColor = C.text;
+      cellColor = S.text;
     } else if (type === "UNPAID") {
       cellBg = "transparent";
-      cellColor = C.textDim;
+      cellColor = S.textSubtle;
     } else if (hol || otherHol) {
-      cellBg = isPast ? "#F8F8F8" : "#FCF937";
-      cellColor = C.text;
+      cellBg = isPast ? S.surfaceAlt : S.holiday;
+      cellColor = S.text;
     } else if (wk) {
-      cellBg = C.weekend;
-      cellColor = C.textDim;
+      cellBg = S.surfaceAlt;
+      cellColor = S.text;
     }
 
     // Preview override — bg at 50% opacity, text stays solid
     if (isPreview && !type && !hol) {
-      cellBg = (previewCulDates.indexOf(key) !== -1 ? C.cul : C.pto) + "80";
-      cellColor = C.text;
+      cellBg = (previewCulDates.indexOf(key) !== -1 ? S.cul : S.pto) + "80";
+      cellColor = S.text;
     }
 
     // Past dates: dim the number regardless of type
-    if (isPast && !isToday) cellColor = "#757575";
+    if (isPast && !isToday) cellColor = S.textSubtle;
 
     // Determine current "option" for the popup
     var currentOption = "unused";
@@ -1331,6 +1377,7 @@ function PTOTrackerApp() {
         onClick={function(e) {
           e.stopPropagation();
           if (hol || wk) return;
+          if (isPast && !e.altKey) return;
           // L+click: toggle locked state on future planned dates
           if (e.altKey && (type === "PLAN" || type === "PLAN_CUL" || type === "PLAN_UNPAID")) {
             var now0 = new Date(); now0.setHours(0,0,0,0);
@@ -1367,9 +1414,6 @@ function PTOTrackerApp() {
             persistSettings({ lockedDates: nextLockedClear });
             setActive(null);
           } else {
-            var clickedDate = new Date(year, month, day);
-            var now = new Date(); now.setHours(0,0,0,0);
-            var isPast = clickedDate < now;
             var culExhausted = (stats.culByYear[year] || 0) >= CUL_DAYS_TOTAL;
             if (culExhausted) {
               // CUL cap reached for this year — assign PTO directly, no popup
@@ -1389,7 +1433,7 @@ function PTOTrackerApp() {
         style={{
           position: "relative", width: "100%", aspectRatio: "1",
           display: "flex", alignItems: "center", justifyContent: "center",
-          borderRadius: 999, cursor: hol || wk ? "default" : "pointer",
+          borderRadius: 999, cursor: (hol || wk || (isPast && !modKeyDown)) ? "default" : "pointer",
           fontSize: 12, fontFamily: work, fontWeight: 400,
           color: cellColor,
           background: "transparent",
@@ -1399,17 +1443,17 @@ function PTOTrackerApp() {
         <div style={{
           position: "absolute", inset: 0, borderRadius: 999,
           background: (type === "PLAN_UNPAID" || type === "UNPAID") ? "transparent" : cellBg,
-          border: highlightedDates.indexOf(key) !== -1 ? "1px solid #70D900"
-                : previewExistingDates.indexOf(key) !== -1 ? "1px solid #70D900"
+          border: highlightedDates.indexOf(key) !== -1 ? "1px solid " + S.unpaid
+                : previewExistingDates.indexOf(key) !== -1 ? "1px solid " + S.unpaid
                 : "none",
-          boxShadow: isAct ? "0 0 0 0.5px " + C.border : "none",
+          boxShadow: isAct ? "0 0 0 0.5px " + S.border : "none",
           transition: "background 0.15s, box-shadow 0.15s",
           animation: justToggled[key] ? "dayCellPop 100ms cubic-bezier(0.4, 0, 0, 1) both" : "none",
         }} />
         {(type === "PLAN_UNPAID" || type === "UNPAID") && (
           <svg style={{ position: "absolute", inset: 0, width: "100%", height: "100%", overflow: "visible" }} viewBox="0 0 100 100">
             <circle cx="50" cy="50" r="49" fill="none"
-              stroke={type === "PLAN_UNPAID" ? C.pto : C.border}
+              stroke={type === "PLAN_UNPAID" ? S.pto : S.border}
               strokeWidth="0.8"
               strokeDasharray="4 3"
               strokeWidth="1.5"
@@ -1424,7 +1468,7 @@ function PTOTrackerApp() {
         {isAct ? (
           <div onClick={function(e) { e.stopPropagation(); }} style={{
             position: "absolute", top: "100%", left: "50%", transform: "translateX(-50%)",
-            marginTop: 4, background: C.surface,
+            marginTop: 4, background: S.surface,
             borderRadius: 12, padding: 8, zIndex: 100,
             boxShadow: "0 4px 16px rgba(0,0,0,0.08)",
             width: 160,
@@ -1432,19 +1476,19 @@ function PTOTrackerApp() {
             animation: "popupBounce 0.2s cubic-bezier(0.4, 0, 0, 1) both",
           }}>
             {[
-              { opt: "pto", label: "PTO DAY", circleBg: ptoFeasible ? C.pto : C.negBg, circleBorder: "none", labelColor: ptoFeasible ? null : C.neg },
-              { opt: "cul", label: "CUL DAY", circleBg: C.cul, circleBorder: "none", labelColor: null },
+              { opt: "pto", label: "PTO DAY", circleBg: ptoFeasible ? S.pto : S.ptoOver, circleBorder: "none", labelColor: ptoFeasible ? null : S.ptoOverText },
+              { opt: "cul", label: "CUL DAY", circleBg: S.cul, circleBorder: "none", labelColor: null },
             ].map(function(item) {
               var isSelected = currentOption === item.opt;
               return (
                 <div key={item.opt}
                   onClick={function() { handleDateOption(key, item.opt); }}
-                  onMouseEnter={function(e) { e.currentTarget.style.color = item.labelColor || C.text; }}
-                  onMouseLeave={function(e) { if (!isSelected) e.currentTarget.style.color = item.labelColor || C.textSec; }}
+                  onMouseEnter={function(e) { e.currentTarget.style.color = item.labelColor || S.text; }}
+                  onMouseLeave={function(e) { if (!isSelected) e.currentTarget.style.color = item.labelColor || S.textSubtle; }}
                   style={{
                     display: "flex", alignItems: "center", gap: 8,
                     padding: "6px 8px", cursor: "pointer", borderRadius: 8,
-                    color: isSelected ? C.text : (item.labelColor || C.textSec),
+                    color: isSelected ? S.text : (item.labelColor || S.textSubtle),
                     fontWeight: isSelected ? 600 : 400,
                     fontFamily: work, fontSize: 11, textTransform: "uppercase",
                     letterSpacing: 0.3,
@@ -1464,12 +1508,12 @@ function PTOTrackerApp() {
           <div ref={tooltipDivRef} style={{
             position: "absolute", top: "calc(100% + 6px)", left: "50%",
             transform: "translateX(calc(-50% + " + tooltipShift + "px))",
-            background: C.surface, color: C.textSec,
+            background: S.surface, color: S.textSubtle,
             padding: "6px 12px", borderRadius: 10,
             fontSize: 12, fontFamily: work, fontWeight: 400,
             pointerEvents: "none", zIndex: 200,
             boxShadow: "0 2px 10px rgba(0,0,0,0.08)",
-            border: "0.5px solid " + C.border,
+            border: "0.5px solid " + S.border,
             whiteSpace: "nowrap",
           }}>{ALL_HOLIDAYS[key] || OTHER_HOLIDAYS[key]}</div>
         ) : null}
@@ -1481,7 +1525,7 @@ function PTOTrackerApp() {
   var todayStr = new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 
   return (
-    <div style={{ display: "flex", fontFamily: work, color: C.text, background: C.bg, minHeight: "100vh", maxWidth: "100vw", overflow: "hidden", opacity: fadeIn ? 1 : 0, transition: "opacity 200ms cubic-bezier(0.4,0,0,1)", userSelect: "none" }}
+    <div style={{ display: "flex", fontFamily: work, color: S.text, background: S.bg, minHeight: "100vh", maxWidth: "100vw", overflow: "hidden", opacity: fadeIn ? 1 : 0, transition: "opacity 200ms cubic-bezier(0.4,0,0,1)", userSelect: "none" }}
       onClick={function() { setActive(null); }}
       onMouseMove={function(e) {
         setTooltip(function(curr) {
@@ -1490,25 +1534,25 @@ function PTOTrackerApp() {
         });
       }}>
 
-      {toast ? <div style={{ position: "fixed", bottom: 24, left: "50%", transform: "translateX(-50%)", background: C.text, color: C.bg, padding: "10px 20px", borderRadius: 999, fontSize: 13, fontFamily: work, zIndex: 1000, whiteSpace: "nowrap", animation: toastVisible ? "toastIn 200ms cubic-bezier(0.4, 0, 0, 1) both" : "toastOut 200ms cubic-bezier(0.4, 0, 0, 1) both" }}>{toast}</div> : null}
+      {toast ? <div style={{ position: "fixed", bottom: 24, left: "50%", transform: "translateX(-50%)", background: S.text, color: S.bg, padding: "10px 20px", borderRadius: 999, fontSize: 13, fontFamily: work, zIndex: 1000, whiteSpace: "nowrap", animation: toastVisible ? "toastIn 200ms cubic-bezier(0.4, 0, 0, 1) both" : "toastOut 200ms cubic-bezier(0.4, 0, 0, 1) both" }}>{toast}</div> : null}
 
       {/* Panel toggle - 4 dot grid (fixed position, desktop only) */}
       {!isMobile && (
         <div onClick={function(e) { e.stopPropagation(); setShowPanel(!showPanel); }}
-          onMouseEnter={function(e){ if (!showPanel) e.currentTarget.style.background = C.border; }}
-          onMouseLeave={function(e){ if (!showPanel) e.currentTarget.style.background = showPanel ? C.text : C.panelBg; }}
-          onMouseDown={function(e){ e.currentTarget.style.background = C.text; }}
-          onMouseUp={function(e){ e.currentTarget.style.background = showPanel ? C.text : C.border; }}
+          onMouseEnter={function(e){ if (!showPanel) e.currentTarget.style.background = S.border; }}
+          onMouseLeave={function(e){ if (!showPanel) e.currentTarget.style.background = showPanel ? S.text : S.surfaceAlt; }}
+          onMouseDown={function(e){ e.currentTarget.style.background = S.text; }}
+          onMouseUp={function(e){ e.currentTarget.style.background = showPanel ? S.text : S.border; }}
           style={{
             position: "fixed", top: dotBtnTop, right: 40, zIndex: 700,
             width: 48, height: 48, borderRadius: 999,
-            background: showPanel ? C.text : C.panelBg,
+            background: showPanel ? S.text : S.surfaceAlt,
             display: "flex", alignItems: "center", justifyContent: "center",
             cursor: "pointer",
           }}>
           <div style={{ display: "grid", gridTemplateColumns: "3.5px 3.5px", gap: 3, transform: showPanel ? "rotate(360deg)" : "rotate(0deg)", transition: "transform 400ms cubic-bezier(0.4, 0, 0, 1)" }}>
             {[0,1,2,3].map(function(i) {
-              return <div key={i} style={{ width: 3.5, height: 3.5, borderRadius: 999, background: showPanel ? C.bg : C.textDim }} />;
+              return <div key={i} style={{ width: 3.5, height: 3.5, borderRadius: 999, background: showPanel ? S.bg : S.textSubtle }} />;
             })}
           </div>
         </div>
@@ -1518,7 +1562,7 @@ function PTOTrackerApp() {
       <div style={{ flex: 1, minWidth: 0, height: "100vh", overflow: "hidden", display: "flex", flexDirection: "column" }}>
 
         {/* Top Section */}
-        <div style={{ flexShrink: 0, zIndex: 600, background: C.bg }}>
+        <div style={{ flexShrink: 0, zIndex: 600, background: S.bg }}>
           <div style={{ padding: isMobile ? "20px 20px 0 20px" : "24px 40px 0 40px" }}>
             {/* Mobile stats row (compact) - hidden when panel active */}
             {isMobile && (
@@ -1526,15 +1570,15 @@ function PTOTrackerApp() {
                 <div style={{ width: "50%", display: "flex", alignItems: "baseline", gap: 8 }}>
                   <AnimatedNumber value={stats.eocyDays} style={{ fontFamily: mono, fontWeight: 400, fontSize: 44, lineHeight: 1 }} />
                   <div style={{ position: "relative", top: -6 }}>
-                    <div style={{ position: "absolute", bottom: "100%", marginBottom: 3, fontFamily: work, fontSize: 11, fontWeight: 600, color: C.text, textTransform: "uppercase", letterSpacing: 0.3, lineHeight: 1, whiteSpace: "nowrap" }}>PTO</div>
-                    <div style={{ fontFamily: work, fontSize: 11, fontWeight: 600, color: C.text, textTransform: "uppercase", letterSpacing: 0.3, lineHeight: 1, whiteSpace: "nowrap" }}>Days</div>
+                    <div style={{ position: "absolute", bottom: "100%", marginBottom: 3, fontFamily: work, fontSize: 11, fontWeight: 600, color: S.text, textTransform: "uppercase", letterSpacing: 0.3, lineHeight: 1, whiteSpace: "nowrap" }}>PTO</div>
+                    <div style={{ fontFamily: work, fontSize: 11, fontWeight: 600, color: S.text, textTransform: "uppercase", letterSpacing: 0.3, lineHeight: 1, whiteSpace: "nowrap" }}>Days</div>
                   </div>
                 </div>
                 <div style={{ width: "50%", display: "flex", alignItems: "baseline", gap: 8 }}>
                   <AnimatedNumber value={stats.culRemaining} style={{ fontFamily: mono, fontWeight: 400, fontSize: 44, lineHeight: 1 }} />
                   <div style={{ position: "relative", top: -6 }}>
-                    <div style={{ position: "absolute", bottom: "100%", marginBottom: 3, fontFamily: work, fontSize: 11, fontWeight: 600, color: C.text, textTransform: "uppercase", letterSpacing: 0.3, lineHeight: 1, whiteSpace: "nowrap" }}>CUL</div>
-                    <div style={{ fontFamily: work, fontSize: 11, fontWeight: 600, color: C.text, textTransform: "uppercase", letterSpacing: 0.3, lineHeight: 1, whiteSpace: "nowrap" }}>Days</div>
+                    <div style={{ position: "absolute", bottom: "100%", marginBottom: 3, fontFamily: work, fontSize: 11, fontWeight: 600, color: S.text, textTransform: "uppercase", letterSpacing: 0.3, lineHeight: 1, whiteSpace: "nowrap" }}>CUL</div>
+                    <div style={{ fontFamily: work, fontSize: 11, fontWeight: 600, color: S.text, textTransform: "uppercase", letterSpacing: 0.3, lineHeight: 1, whiteSpace: "nowrap" }}>Days</div>
                   </div>
                 </div>
               </div>
@@ -1548,15 +1592,15 @@ function PTOTrackerApp() {
                   <div style={{ display: "flex", alignItems: "flex-end", gap: 8 }}>
                     <AnimatedNumber value={stats.eocyDays} style={{ fontFamily: mono, fontWeight: 400, fontSize: 54, lineHeight: 1 }} />
                     <div style={{ position: "relative", marginBottom: 12 }}>
-                      <div style={{ position: "absolute", bottom: "100%", marginBottom: 3, fontFamily: work, fontSize: 11, fontWeight: 600, color: C.text, textTransform: "uppercase", letterSpacing: 0.4, lineHeight: 1, whiteSpace: "nowrap" }}>PTO</div>
-                      <div style={{ fontFamily: work, fontSize: 11, fontWeight: 600, color: C.text, textTransform: "uppercase", letterSpacing: 0.4, lineHeight: 1, whiteSpace: "nowrap" }}>Days</div>
+                      <div style={{ position: "absolute", bottom: "100%", marginBottom: 3, fontFamily: work, fontSize: 11, fontWeight: 600, color: S.text, textTransform: "uppercase", letterSpacing: 0.4, lineHeight: 1, whiteSpace: "nowrap" }}>PTO</div>
+                      <div style={{ fontFamily: work, fontSize: 11, fontWeight: 600, color: S.text, textTransform: "uppercase", letterSpacing: 0.4, lineHeight: 1, whiteSpace: "nowrap" }}>Days</div>
                     </div>
                   </div>
                   <div style={{ display: "flex", alignItems: "flex-end", gap: 8 }}>
                     <AnimatedNumber value={stats.culRemaining} style={{ fontFamily: mono, fontWeight: 400, fontSize: 54, lineHeight: 1 }} />
                     <div style={{ position: "relative", marginBottom: 12 }}>
-                      <div style={{ position: "absolute", bottom: "100%", marginBottom: 3, fontFamily: work, fontSize: 11, fontWeight: 600, color: C.text, textTransform: "uppercase", letterSpacing: 0.4, lineHeight: 1, whiteSpace: "nowrap" }}>CUL</div>
-                      <div style={{ fontFamily: work, fontSize: 11, fontWeight: 600, color: C.text, textTransform: "uppercase", letterSpacing: 0.4, lineHeight: 1, whiteSpace: "nowrap" }}>Days</div>
+                      <div style={{ position: "absolute", bottom: "100%", marginBottom: 3, fontFamily: work, fontSize: 11, fontWeight: 600, color: S.text, textTransform: "uppercase", letterSpacing: 0.4, lineHeight: 1, whiteSpace: "nowrap" }}>CUL</div>
+                      <div style={{ fontFamily: work, fontSize: 11, fontWeight: 600, color: S.text, textTransform: "uppercase", letterSpacing: 0.4, lineHeight: 1, whiteSpace: "nowrap" }}>Days</div>
                     </div>
                   </div>
                 </div>
@@ -1569,13 +1613,13 @@ function PTOTrackerApp() {
                   <div onClick={function(e) { e.stopPropagation(); setShowPanel(!showPanel); }}
                     style={{
                       width: 54, height: 54, borderRadius: 999,
-                      background: showPanel ? C.text : C.panelBg,
+                      background: showPanel ? S.text : S.surfaceAlt,
                       display: "flex", alignItems: "center", justifyContent: "center",
                       cursor: "pointer", flexShrink: 0,
                     }}>
                     <div style={{ display: "grid", gridTemplateColumns: "3.5px 3.5px", gap: 3, transform: showPanel ? "rotate(360deg)" : "rotate(0deg)", transition: "transform 400ms cubic-bezier(0.4, 0, 0, 1)" }}>
                       {[0,1,2,3].map(function(i) {
-                        return <div key={i} style={{ width: 3.5, height: 3.5, borderRadius: 999, background: showPanel ? C.bg : C.textDim }} />;
+                        return <div key={i} style={{ width: 3.5, height: 3.5, borderRadius: 999, background: showPanel ? S.bg : S.textSubtle }} />;
                       })}
                     </div>
                   </div>
@@ -1583,27 +1627,27 @@ function PTOTrackerApp() {
                 {/* Year nav pill */}
                 <div ref={yearNavRef} style={{
                   display: "flex", alignItems: "center",
-                  background: C.panelBg, borderRadius: 999, height: isMobile ? 54 : 48,
+                  background: S.surfaceAlt, borderRadius: 999, height: isMobile ? 54 : 48,
                   padding: "0",
                   flex: isMobile ? 1 : "none",
                 }}>
                   <div onClick={function() { setViewYear(viewYear - 1); smoothScrollTop(calendarScrollRef.current, 400); }}
-                    onMouseEnter={function(e){ e.currentTarget.style.background = C.border; e.currentTarget.style.color = C.textDim; }}
-                    onMouseLeave={function(e){ e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = C.textDim; }}
-                    onMouseDown={function(e){ e.currentTarget.style.background = C.text; e.currentTarget.style.color = C.bg; }}
-                    onMouseUp={function(e){ e.currentTarget.style.background = C.border; e.currentTarget.style.color = C.textDim; }}
-                    style={{ width: isMobile ? 54 : 48, height: isMobile ? 54 : 48, borderRadius: 999, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", userSelect: "none", color: C.textDim }}>
+                    onMouseEnter={function(e){ e.currentTarget.style.background = S.border; e.currentTarget.style.color = S.textSubtle; }}
+                    onMouseLeave={function(e){ e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = S.textSubtle; }}
+                    onMouseDown={function(e){ e.currentTarget.style.background = S.text; e.currentTarget.style.color = S.bg; }}
+                    onMouseUp={function(e){ e.currentTarget.style.background = S.border; e.currentTarget.style.color = S.textSubtle; }}
+                    style={{ width: isMobile ? 54 : 48, height: isMobile ? 54 : 48, borderRadius: 999, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", userSelect: "none", color: S.textSubtle }}>
                     <svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">
                       <path d="M9 2L4 7L9 12" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"/>
                     </svg>
                   </div>
                   <span style={{ fontFamily: grotesk, fontWeight: 500, fontSize: 20, padding: "0 16px", flex: isMobile ? 1 : "none", textAlign: "center" }}>{viewYear}</span>
                   <div onClick={function() { setViewYear(viewYear + 1); smoothScrollTop(calendarScrollRef.current, 400); }}
-                    onMouseEnter={function(e){ e.currentTarget.style.background = C.border; e.currentTarget.style.color = C.textDim; }}
-                    onMouseLeave={function(e){ e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = C.textDim; }}
-                    onMouseDown={function(e){ e.currentTarget.style.background = C.text; e.currentTarget.style.color = C.bg; }}
-                    onMouseUp={function(e){ e.currentTarget.style.background = C.border; e.currentTarget.style.color = C.textDim; }}
-                    style={{ width: isMobile ? 54 : 48, height: isMobile ? 54 : 48, borderRadius: 999, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", userSelect: "none", color: C.textDim }}>
+                    onMouseEnter={function(e){ e.currentTarget.style.background = S.border; e.currentTarget.style.color = S.textSubtle; }}
+                    onMouseLeave={function(e){ e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = S.textSubtle; }}
+                    onMouseDown={function(e){ e.currentTarget.style.background = S.text; e.currentTarget.style.color = S.bg; }}
+                    onMouseUp={function(e){ e.currentTarget.style.background = S.border; e.currentTarget.style.color = S.textSubtle; }}
+                    style={{ width: isMobile ? 54 : 48, height: isMobile ? 54 : 48, borderRadius: 999, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", userSelect: "none", color: S.textSubtle }}>
                     <svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">
                       <path d="M5 2L10 7L5 12" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"/>
                     </svg>
@@ -1614,7 +1658,7 @@ function PTOTrackerApp() {
             </div>
           </div>
           {/* Divider */}
-          <div style={{ height: "0.5px", background: C.border, margin: isMobile ? "16px 20px 0 20px" : "24px 40px 0 40px" }} />
+          <div style={{ height: "0.5px", background: S.border, margin: isMobile ? "16px 20px 0 20px" : "24px 40px 0 40px" }} />
         </div>
 
         {/* Calendar Grid */}
@@ -1641,7 +1685,7 @@ function PTOTrackerApp() {
                   cells.push(
                     <div key={"p" + prevDay} style={{
                       aspectRatio: "1", display: "flex", alignItems: "center", justifyContent: "center",
-                      fontSize: 12, fontFamily: work, fontWeight: 400, color: C.border, userSelect: "none",
+                      fontSize: 12, fontFamily: work, fontWeight: 400, color: S.border, userSelect: "none",
                     }}>{prevDay}</div>
                   );
                 }
@@ -1656,7 +1700,7 @@ function PTOTrackerApp() {
                 cells.push(
                   <div key={"n" + n} style={{
                     aspectRatio: "1", display: "flex", alignItems: "center", justifyContent: "center",
-                    fontSize: 12, fontFamily: work, fontWeight: 400, color: C.border, userSelect: "none",
+                    fontSize: 12, fontFamily: work, fontWeight: 400, color: S.border, userSelect: "none",
                   }}>{n}</div>
                 );
               }
@@ -1664,13 +1708,13 @@ function PTOTrackerApp() {
               var isCurrentMonth = viewYear === new Date().getFullYear() && mi === new Date().getMonth();
               return (
                 <div key={mName} id={isCurrentMonth ? "month-current" : undefined}>
-                  <div style={{ fontFamily: goudy, fontStyle: "italic", fontSize: 22, color: C.text, marginBottom: 24 }}>
+                  <div style={{ fontFamily: goudy, fontStyle: "italic", fontSize: 22, color: S.text, marginBottom: 24 }}>
                     {mName}
                   </div>
                   {/* Weekday headers */}
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 8, marginBottom: 4 }}>
                     {(weekStart === "sunday" ? ["S","M","T","W","T","F","S"] : ["M","T","W","T","F","S","S"]).map(function(w, wi) {
-                      return <div key={wi} style={{ display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontFamily: work, fontWeight: 500, color: C.textSec, textTransform: "uppercase", padding: "4px 0" }}>{w}</div>;
+                      return <div key={wi} style={{ display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontFamily: work, fontWeight: 500, color: S.textSubtle, textTransform: "uppercase", padding: "4px 0" }}>{w}</div>;
                     })}
                   </div>
                   {/* Date cells */}
@@ -1689,7 +1733,7 @@ function PTOTrackerApp() {
         position: "fixed", left: 0, right: 0, bottom: 0, zIndex: 800,
         height: showPanel ? "50vh" : 0,
         overflow: "hidden",
-        background: C.panelBg,
+        background: S.surfaceAlt,
         borderRadius: showPanel ? "20px 20px 0 0" : "0",
         boxShadow: showPanel ? "0 -4px 24px rgba(0,0,0,0.08)" : "none",
         transition: sheetDragY > 0 ? "none" : "height 400ms cubic-bezier(0.4, 0, 0, 1)",
@@ -1701,13 +1745,13 @@ function PTOTrackerApp() {
       }}>
         <div onClick={function(e) { e.stopPropagation(); }} style={isMobile ? {
           height: "100%",
-          background: C.panelBg,
+          background: S.surfaceAlt,
           display: "flex", flexDirection: "column",
           boxSizing: "border-box",
           position: "relative",
         } : {
           width: 360, height: "100vh",
-          background: C.panelBg,
+          background: S.surfaceAlt,
           display: "flex", flexDirection: "column",
           boxSizing: "border-box",
           position: "relative",
@@ -1735,10 +1779,10 @@ function PTOTrackerApp() {
                 }
                 sheetDragStart.current = null;
               }}
-              ref={tabBarRef} style={{ display: "flex", gap: 20, position: "relative", borderBottom: "0.5px solid " + C.border, background: C.panelBg, flexShrink: 0, flexDirection: "column", padding: "0" }}
+              ref={tabBarRef} style={{ display: "flex", gap: 20, position: "relative", borderBottom: "0.5px solid " + S.border, background: S.surfaceAlt, flexShrink: 0, flexDirection: "column", padding: "0" }}
             >
               <div style={{ display: "flex", justifyContent: "center", paddingTop: 10, paddingBottom: 4 }}>
-                <div style={{ width: 36, height: 4, borderRadius: 2, background: C.border }} />
+                <div style={{ width: 36, height: 4, borderRadius: 2, background: S.border }} />
               </div>
               <div style={{ display: "flex", gap: 20, padding: "0 20px", position: "relative" }}>
               {[
@@ -1756,7 +1800,7 @@ function PTOTrackerApp() {
                       fontFamily: work, fontSize: 11, textTransform: "uppercase",
                       letterSpacing: 0.5, cursor: "pointer",
                       fontWeight: isActive ? 600 : 400,
-                      color: isActive ? C.text : C.textSec,
+                      color: isActive ? S.text : S.textSubtle,
                       paddingBottom: 10, paddingTop: 16,
                     }}>
                     {tab.label}
@@ -1766,9 +1810,50 @@ function PTOTrackerApp() {
               <div style={{
                 position: "absolute", bottom: -0.5,
                 left: indicatorPos.left, width: indicatorPos.width,
-                height: 0.5, background: C.text,
+                height: 0.5, background: S.text,
                 transition: "left 200ms cubic-bezier(0.4, 0, 0, 1), width 200ms cubic-bezier(0.4, 0, 0, 1)",
               }} />
+              </div>
+            </div>
+          )}
+
+          {/* Sticky panel header + tab bar - desktop only */}
+          {!isMobile && (
+            <div style={{ flexShrink: 0, padding: "36px 24px 0 24px", background: S.surfaceAlt }}>
+              <div style={{ marginBottom: 54 }}>
+                <div style={{ fontFamily: goudy, fontStyle: "italic", fontSize: 50, lineHeight: 1, marginBottom: 8, letterSpacing: -1 }}>{userName}</div>
+                <div style={{ fontFamily: work, fontSize: 12, color: S.textSubtle, lineHeight: 1.5 }}>Management Level {editCL}</div>
+                <div style={{ fontFamily: work, fontSize: 12, color: S.textSubtle, lineHeight: 1.5 }}>{"Since " + new Date(startStr + "T12:00:00").toLocaleDateString("en-US", { month: "numeric", day: "numeric", year: "numeric" })}</div>
+              </div>
+              <div ref={tabBarRef} style={{ display: "flex", gap: 20, marginBottom: 0, position: "relative", borderBottom: "0.5px solid " + S.border }}>
+                {[
+                  { key: "reco", label: "PLAN" },
+                  { key: "write", label: "DRAFT" },
+                  { key: "overview", label: "BALANCE" },
+                  { key: "settings", label: "SETTINGS" },
+                ].map(function(tab) {
+                  var isActive = panelTab === tab.key;
+                  return (
+                    <div key={tab.key}
+                      ref={function(el) { tabItemRefs.current[tab.key] = el; }}
+                      onClick={function() { setPanelTab(tab.key); }}
+                      style={{
+                        fontFamily: work, fontSize: 11, textTransform: "uppercase",
+                        letterSpacing: 0.5, cursor: "pointer",
+                        fontWeight: isActive ? 600 : 400,
+                        color: isActive ? S.text : S.textSubtle,
+                        paddingBottom: 10,
+                      }}>
+                      {tab.label}
+                    </div>
+                  );
+                })}
+                <div style={{
+                  position: "absolute", bottom: -0.5,
+                  left: indicatorPos.left, width: indicatorPos.width,
+                  height: 0.5, background: S.text,
+                  transition: "left 200ms cubic-bezier(0.4, 0, 0, 1), width 200ms cubic-bezier(0.4, 0, 0, 1)",
+                }} />
               </div>
             </div>
           )}
@@ -1776,77 +1861,35 @@ function PTOTrackerApp() {
           {/* Scrollable content area */}
           <div style={{ flex: 1, overflowY: "auto", padding: isMobile
             ? ("20px 20px " + (((panelTab === "reco" && previewDates.length > 0) || (panelTab === "settings" && settingsDirty) || (panelTab === "write" && writeSelectedGroups.length > 0)) ? "120px" : "20px") + " 20px")
-            : ("36px 24px " + (((panelTab === "reco" && previewDates.length > 0) || (panelTab === "settings" && settingsDirty) || (panelTab === "write" && writeSelectedGroups.length > 0)) ? "160px" : "24px") + " 24px")
+            : ("0 24px " + (((panelTab === "reco" && previewDates.length > 0) || (panelTab === "settings" && settingsDirty) || (panelTab === "write" && writeSelectedGroups.length > 0)) ? "160px" : "24px") + " 24px")
           }}>
-
-            {/* Panel Header - desktop only */}
-            {!isMobile && (
-              <div style={{ marginBottom: 54 }}>
-                <div style={{ fontFamily: goudy, fontStyle: "italic", fontSize: 50, lineHeight: 1, marginBottom: 8, letterSpacing: -1 }}>{userName}</div>
-                <div style={{ fontFamily: work, fontSize: 12, color: C.textSec, lineHeight: 1.5 }}>Management Level {editCL}</div>
-                <div style={{ fontFamily: work, fontSize: 12, color: C.textSec, lineHeight: 1.5 }}>{"Since " + new Date(startStr + "T12:00:00").toLocaleDateString("en-US", { month: "numeric", day: "numeric", year: "numeric" })}</div>
-              </div>
-            )}
-
-            {/* Tab bar - desktop only (mobile rendered above scroll container) */}
-            {!isMobile && <div ref={tabBarRef} style={{ display: "flex", gap: 20, marginBottom: 0, position: "relative", borderBottom: "0.5px solid " + C.border }}>
-              {[
-                { key: "reco", label: "PLAN" },
-                { key: "write", label: "DRAFT" },
-                { key: "overview", label: "BALANCE" },
-                { key: "settings", label: "SETTINGS" },
-              ].map(function(tab) {
-                var isActive = panelTab === tab.key;
-                return (
-                  <div key={tab.key}
-                    ref={function(el) { tabItemRefs.current[tab.key] = el; }}
-                    onClick={function() { setPanelTab(tab.key); }}
-                    style={{
-                      fontFamily: work, fontSize: 11, textTransform: "uppercase",
-                      letterSpacing: 0.5, cursor: "pointer",
-                      fontWeight: isActive ? 600 : 400,
-                      color: isActive ? C.text : C.textSec,
-                      paddingBottom: 10,
-                    }}>
-                    {tab.label}
-                  </div>
-                );
-              })}
-              {/* Sliding indicator */}
-              <div style={{
-                position: "absolute", bottom: -0.5,
-                left: indicatorPos.left, width: indicatorPos.width,
-                height: 0.5, background: C.text,
-                transition: "left 200ms cubic-bezier(0.4, 0, 0, 1), width 200ms cubic-bezier(0.4, 0, 0, 1)",
-              }} />
-            </div>}
 
             {/* Overview Tab */}
             {panelTab === "overview" ? (
               <div style={{ paddingTop: isMobile ? 28 : 40 }}>
                 {/* Balance Section — first: no top border */}
                 <div style={{ marginBottom: 64 }}>
-                  <div style={{ fontFamily: work, fontSize: 11, textTransform: "uppercase", color: C.textSec, letterSpacing: 0.5, marginBottom: 20 }}>{"Balance FY" + viewYear}</div>
+                  <div style={{ fontFamily: work, fontSize: 11, textTransform: "uppercase", color: S.textSubtle, letterSpacing: 0.5, marginBottom: 20 }}>{"Balance FY" + viewYear}</div>
                   <div style={{ display: "flex", gap: 24 }}>
                     <div style={{ flex: 1 }}>
-                      <div style={{ fontFamily: grotesk, fontWeight: 500, fontSize: 20, color: stats.balHrs < 0 ? C.neg : C.text }}>
+                      <div style={{ fontFamily: grotesk, fontWeight: 500, fontSize: 20, color: stats.balHrs < 0 ? S.ptoOverText : S.text }}>
                         {(stats.balHrs / HOURS_PER_DAY).toFixed(1)}
                       </div>
-                      <div style={{ fontFamily: work, fontSize: 12, fontWeight: 500, color: stats.balHrs < 0 ? C.neg : C.text, lineHeight: 1.5 }}>
+                      <div style={{ fontFamily: work, fontSize: 12, fontWeight: 500, color: stats.balHrs < 0 ? S.ptoOverText : S.text, lineHeight: 1.5 }}>
                         {"days / " + stats.balHrs + " hrs"}
                       </div>
-                      <div style={{ fontFamily: work, fontSize: 12, color: C.textSec, lineHeight: 1.5 }}>
+                      <div style={{ fontFamily: work, fontSize: 12, color: S.textSubtle, lineHeight: 1.5 }}>
                         {"as of today"}
                       </div>
                     </div>
                     <div style={{ flex: 1 }}>
-                      <div style={{ fontFamily: grotesk, fontWeight: 500, fontSize: 20, color: stats.eoy < 0 ? C.neg : C.text }}>
+                      <div style={{ fontFamily: grotesk, fontWeight: 500, fontSize: 20, color: stats.eoy < 0 ? S.ptoOverText : S.text }}>
                         {stats.eoyDays.toFixed(1)}
                       </div>
-                      <div style={{ fontFamily: work, fontSize: 12, fontWeight: 500, color: stats.eoy < 0 ? C.neg : C.text, lineHeight: 1.5 }}>
+                      <div style={{ fontFamily: work, fontSize: 12, fontWeight: 500, color: stats.eoy < 0 ? S.ptoOverText : S.text, lineHeight: 1.5 }}>
                         {"days / " + stats.eoy.toFixed(1) + " hrs"}
                       </div>
-                      <div style={{ fontFamily: work, fontSize: 12, color: C.textSec, lineHeight: 1.5 }}>
+                      <div style={{ fontFamily: work, fontSize: 12, color: S.textSubtle, lineHeight: 1.5 }}>
                         by Aug 31
                       </div>
                     </div>
@@ -1854,8 +1897,8 @@ function PTOTrackerApp() {
                 </div>
 
                 {/* Accrual Rate Section */}
-                <div style={{ borderTop: "0.5px solid " + C.border, paddingTop: 8, marginBottom: 64 }}>
-                  <div style={{ fontFamily: work, fontSize: 11, textTransform: "uppercase", color: C.textSec, letterSpacing: 0.5, marginBottom: 20 }}>Accrual Rate</div>
+                <div style={{ borderTop: "0.5px solid " + S.border, paddingTop: 8, marginBottom: 64 }}>
+                  <div style={{ fontFamily: work, fontSize: 11, textTransform: "uppercase", color: S.textSubtle, letterSpacing: 0.5, marginBottom: 20 }}>Accrual Rate</div>
                   {(function() {
                     var now = new Date(); now.setHours(0,0,0,0);
                     var ms = new Date(startStr); ms.setFullYear(ms.getFullYear() + 5);
@@ -1868,13 +1911,13 @@ function PTOTrackerApp() {
                       <div style={{ display: "flex", gap: 24 }}>
                         <div style={{ flex: 1 }}>
                           <div style={{ fontFamily: grotesk, fontWeight: 500, fontSize: 20 }}>{rateA}</div>
-                          <div style={{ fontFamily: work, fontSize: 12, color: C.text, lineHeight: 1.5 }}>hrs per pay</div>
-                          <div style={{ fontFamily: work, fontSize: 12, color: C.textSec, lineHeight: 1.5 }}>{labelA}</div>
+                          <div style={{ fontFamily: work, fontSize: 12, color: S.text, lineHeight: 1.5 }}>hrs per pay</div>
+                          <div style={{ fontFamily: work, fontSize: 12, color: S.textSubtle, lineHeight: 1.5 }}>{labelA}</div>
                         </div>
                         <div style={{ flex: 1 }}>
                           <div style={{ fontFamily: grotesk, fontWeight: 500, fontSize: 20 }}>{rateB}</div>
-                          <div style={{ fontFamily: work, fontSize: 12, color: C.text, lineHeight: 1.5 }}>hrs per pay</div>
-                          <div style={{ fontFamily: work, fontSize: 12, color: C.textSec, lineHeight: 1.5 }}>{labelB}</div>
+                          <div style={{ fontFamily: work, fontSize: 12, color: S.text, lineHeight: 1.5 }}>hrs per pay</div>
+                          <div style={{ fontFamily: work, fontSize: 12, color: S.textSubtle, lineHeight: 1.5 }}>{labelB}</div>
                         </div>
                       </div>
                     );
@@ -1882,18 +1925,18 @@ function PTOTrackerApp() {
                 </div>
 
                 {/* Used Vacation Days Section */}
-                <div style={{ borderTop: "0.5px solid " + C.border, paddingTop: 8, marginBottom: 64 }}>
-                  <div style={{ fontFamily: work, fontSize: 11, textTransform: "uppercase", color: C.textSec, letterSpacing: 0.5, marginBottom: 20 }}>Used Vacation Days</div>
+                <div style={{ borderTop: "0.5px solid " + S.border, paddingTop: 8, marginBottom: 64 }}>
+                  <div style={{ fontFamily: work, fontSize: 11, textTransform: "uppercase", color: S.textSubtle, letterSpacing: 0.5, marginBottom: 20 }}>Used Vacation Days</div>
                   <div style={{ display: "flex", gap: 24 }}>
                     <div style={{ flex: 1 }}>
                       <div style={{ fontFamily: grotesk, fontWeight: 500, fontSize: 20 }}>{stats.ptoUsed}</div>
-                      <div style={{ fontFamily: work, fontSize: 12, color: C.text, lineHeight: 1.5 }}>PTO days</div>
-                      <div style={{ fontFamily: work, fontSize: 12, color: C.textSec, lineHeight: 1.5 }}>FY {viewYear}</div>
+                      <div style={{ fontFamily: work, fontSize: 12, color: S.text, lineHeight: 1.5 }}>PTO days</div>
+                      <div style={{ fontFamily: work, fontSize: 12, color: S.textSubtle, lineHeight: 1.5 }}>FY {viewYear}</div>
                     </div>
                     <div style={{ flex: 1 }}>
                       <div style={{ fontFamily: grotesk, fontWeight: 500, fontSize: 20 }}>{stats.culUsed}</div>
-                      <div style={{ fontFamily: work, fontSize: 12, color: C.text, lineHeight: 1.5 }}>CUL days</div>
-                      <div style={{ fontFamily: work, fontSize: 12, color: C.textSec, lineHeight: 1.5 }}>{viewYear}</div>
+                      <div style={{ fontFamily: work, fontSize: 12, color: S.text, lineHeight: 1.5 }}>CUL days</div>
+                      <div style={{ fontFamily: work, fontSize: 12, color: S.textSubtle, lineHeight: 1.5 }}>{viewYear}</div>
                     </div>
                   </div>
                 </div>
@@ -1912,21 +1955,21 @@ function PTOTrackerApp() {
               return (
                 <div style={{ paddingTop: isMobile ? 28 : 40 }}>
                   {availSizes.length === 0 ? (
-                    <div style={{ fontFamily: work, fontSize: 12, color: C.textSec, lineHeight: 1.4 }}>No opportunities available with your current balance.</div>
+                    <div style={{ fontFamily: work, fontSize: 12, color: S.textSubtle, lineHeight: 1.4 }}>No opportunities available with your current balance.</div>
                   ) : (
                     <div>
                       {/* Single container card: Days Off + slider */}
-                      <div style={{ background: C.surface, borderRadius: 16, padding: "14px 14px 20px", marginBottom: 8 }}>
-                        <div style={{ fontFamily: work, fontSize: 12, color: C.textSec, marginBottom: 16 }}>Days off</div>
+                      <div style={{ background: S.surface, borderRadius: 16, padding: "14px 14px 20px", marginBottom: 8 }}>
+                        <div style={{ fontFamily: work, fontSize: 12, color: S.textSubtle, marginBottom: 16 }}>Days off</div>
                         {/* Numbers row */}
                         <div style={{ position: "relative", height: 26, marginBottom: 14 }}>
                           {effectiveDays > minDays && (
-                            <div style={{ position: "absolute", left: 0, fontFamily: grotesk, fontWeight: 500, fontSize: 20, color: "#CECECE", lineHeight: 1 }}>{minDays}</div>
+                            <div style={{ position: "absolute", left: 0, fontFamily: grotesk, fontWeight: 500, fontSize: 20, color: S.textFaint, lineHeight: 1 }}>{minDays}</div>
                           )}
                           {effectiveDays < maxDays && (
-                            <div style={{ position: "absolute", right: 0, fontFamily: grotesk, fontWeight: 500, fontSize: 20, color: "#CECECE", lineHeight: 1 }}>{maxDays}</div>
+                            <div style={{ position: "absolute", right: 0, fontFamily: grotesk, fontWeight: 500, fontSize: 20, color: S.textFaint, lineHeight: 1 }}>{maxDays}</div>
                           )}
-                          <div style={Object.assign({ position: "absolute", fontFamily: grotesk, fontWeight: 500, fontSize: 20, color: C.text, lineHeight: 1 }, thumbStyle)}>{effectiveDays}</div>
+                          <div style={Object.assign({ position: "absolute", fontFamily: grotesk, fontWeight: 500, fontSize: 20, color: S.text, lineHeight: 1 }, thumbStyle)}>{effectiveDays}</div>
                         </div>
                         {/* Slider */}
                         <input type="range" className="reco-slider"
@@ -1959,8 +2002,8 @@ function PTOTrackerApp() {
                                     var oppYear = parseInt(o.date.split("-")[0]); if (oppYear !== viewYear) setViewYear(oppYear);
                                   }
                                 }}
-                                style={{ background: C.surface, borderRadius: 16, padding: 16, cursor: "pointer", border: isPreviewing ? "0.5px solid " + C.textSec : "0.5px solid transparent" }}>
-                                <div style={{ fontFamily: work, fontSize: 14, color: C.text, marginBottom: 8 }}>{dateRange}</div>
+                                style={{ background: S.surface, borderRadius: 16, height: 80, padding: "0 16px", display: "flex", flexDirection: "column", justifyContent: "center", cursor: "pointer", border: isPreviewing ? "0.5px solid " + S.textSubtle : "0.5px solid transparent" }}>
+                                <div style={{ fontFamily: work, fontSize: 14, color: S.text, marginBottom: 8 }}>{dateRange}</div>
                                 {(function() {
                                   var existing = o.alreadyPlannedInSpan || [];
                                   var existingPTO = existing.filter(function(d) { return days[d] === "PLAN"; }).length;
@@ -1971,14 +2014,14 @@ function PTOTrackerApp() {
                                   var parts = [];
                                   if (ptoCount > 0) parts.push(ptoCount + " PTO" + (ptoCount > 1 ? "s" : ""));
                                   if (totalCUL > 0) parts.push(totalCUL + " CUL" + (totalCUL > 1 ? "s" : ""));
-                                  return <div style={{ fontFamily: work, fontSize: 12, color: C.textSec }}>{parts.join(", ")}</div>;
+                                  return <div style={{ fontFamily: work, fontSize: 12, color: S.textSubtle }}>{parts.join(", ")}</div>;
                                 })()}
                               </div>
                             );
                           })}
                         </div>
                       ) : (
-                        <div style={{ fontFamily: work, fontSize: 12, color: C.textSec, lineHeight: 1.4 }}>No opportunities for {effectiveDays} days off.</div>
+                        <div style={{ fontFamily: work, fontSize: 12, color: S.textSubtle, lineHeight: 1.4 }}>No opportunities for {effectiveDays} days off.</div>
                       )}
                     </div>
                   )}
@@ -1991,27 +2034,27 @@ function PTOTrackerApp() {
               <div style={{ paddingTop: isMobile ? 28 : 40 }}>
                 {/* INFO section — first: no top border */}
                 <div style={{ marginBottom: 64 }}>
-                  <div style={{ fontFamily: work, fontSize: 11, textTransform: "uppercase", color: C.textSec, letterSpacing: 0.5, marginBottom: 12 }}>Info</div>
+                  <div style={{ fontFamily: work, fontSize: 11, textTransform: "uppercase", color: S.textSubtle, letterSpacing: 0.5, marginBottom: 12 }}>Info</div>
                   <div style={{ display: "flex", gap: 4, marginBottom: 4 }}>
-                    <div style={{ flex: 1, background: C.surface, borderRadius: 16, padding: 16, border: focusedField === "name" ? "0.5px solid " + C.textSec : "0.5px solid transparent" }}>
-                      <div style={{ fontFamily: work, fontSize: 11, color: C.textSec, marginBottom: 8 }}>Name</div>
+                    <div style={{ flex: 1, background: S.surface, borderRadius: 16, height: 80, padding: "0 16px", display: "flex", flexDirection: "column", justifyContent: "center", border: focusedField === "name" ? "0.5px solid " + S.textSubtle : "0.5px solid transparent" }}>
+                      <div style={{ fontFamily: work, fontSize: 11, color: S.textSubtle, marginBottom: 8 }}>Name</div>
                       <input type="text" value={editName}
                         onChange={function(e) { setEditName(e.target.value); setSettingsDirty(true); }}
                         onFocus={function() { setFocusedField("name"); }}
                         onBlur={function() { setFocusedField(null); }}
-                        style={{ border: "none", outline: "none", fontFamily: work, fontSize: 14, fontWeight: 500, width: "100%", background: "transparent", color: C.text }} />
+                        style={{ border: "none", outline: "none", fontFamily: work, fontSize: 14, fontWeight: 500, width: "100%", background: "transparent", color: S.text }} />
                     </div>
-                    <div style={{ flex: 1, background: C.surface, borderRadius: 16, padding: 16, border: focusedField === "cl" ? "0.5px solid " + C.textSec : "0.5px solid transparent" }}>
-                      <div style={{ fontFamily: work, fontSize: 11, color: C.textSec, marginBottom: 8 }}>Management Level</div>
+                    <div style={{ flex: 1, background: S.surface, borderRadius: 16, height: 80, padding: "0 16px", display: "flex", flexDirection: "column", justifyContent: "center", border: focusedField === "cl" ? "0.5px solid " + S.textSubtle : "0.5px solid transparent" }}>
+                      <div style={{ fontFamily: work, fontSize: 11, color: S.textSubtle, marginBottom: 8 }}>Management Level</div>
                       <input type="text" value={editCL}
                         onChange={function(e) { setEditCL(e.target.value); setSettingsDirty(true); }}
                         onFocus={function() { setFocusedField("cl"); }}
                         onBlur={function() { setFocusedField(null); }}
-                        style={{ border: "none", outline: "none", fontFamily: work, fontSize: 14, fontWeight: 500, width: "100%", background: "transparent", color: C.text }} />
+                        style={{ border: "none", outline: "none", fontFamily: work, fontSize: 14, fontWeight: 500, width: "100%", background: "transparent", color: S.text }} />
                     </div>
                   </div>
-                  <div style={{ background: C.surface, borderRadius: 16, padding: 16, border: focusedField === "milestone" ? "0.5px solid " + C.textSec : "0.5px solid transparent" }}>
-                    <div style={{ fontFamily: work, fontSize: 11, color: C.textSec, marginBottom: 8 }}>Starting Date</div>
+                  <div style={{ background: S.surface, borderRadius: 16, height: 80, padding: "0 16px", display: "flex", flexDirection: "column", justifyContent: "center", border: focusedField === "milestone" ? "0.5px solid " + S.textSubtle : "0.5px solid transparent" }}>
+                    <div style={{ fontFamily: work, fontSize: 11, color: S.textSubtle, marginBottom: 8 }}>Starting Date</div>
                     <DateField value={editStart} isFocused={focusedField === "milestone"}
                       onChange={function(v) { setEditStart(v); setSettingsDirty(true); }}
                       onFocus={function() { setFocusedField("milestone"); }}
@@ -2020,19 +2063,19 @@ function PTOTrackerApp() {
                 </div>
 
                 {/* CURRENT BALANCE section */}
-                <div style={{ borderTop: "0.5px solid " + C.border, paddingTop: 8, marginBottom: 64 }}>
-                  <div style={{ fontFamily: work, fontSize: 11, textTransform: "uppercase", color: C.textSec, letterSpacing: 0.5, marginBottom: 12 }}>Current Balance</div>
+                <div style={{ borderTop: "0.5px solid " + S.border, paddingTop: 8, marginBottom: 64 }}>
+                  <div style={{ fontFamily: work, fontSize: 11, textTransform: "uppercase", color: S.textSubtle, letterSpacing: 0.5, marginBottom: 12 }}>Current Balance</div>
                   <div style={{ display: "flex", gap: 4 }}>
-                    <div style={{ flex: 1, background: C.surface, borderRadius: 16, padding: 16, border: focusedField === "bal" ? "0.5px solid " + C.textSec : "0.5px solid transparent" }}>
-                      <div style={{ fontFamily: work, fontSize: 11, color: C.textSec, marginBottom: 8 }}>Hours</div>
+                    <div style={{ flex: 1, background: S.surface, borderRadius: 16, height: 80, padding: "0 16px", display: "flex", flexDirection: "column", justifyContent: "center", border: focusedField === "bal" ? "0.5px solid " + S.textSubtle : "0.5px solid transparent" }}>
+                      <div style={{ fontFamily: work, fontSize: 11, color: S.textSubtle, marginBottom: 8 }}>Hours</div>
                       <input type="number" value={editBal}
                         onChange={function(e) { setEditBal(parseFloat(e.target.value) || 0); setSettingsDirty(true); }}
                         onFocus={function() { setFocusedField("bal"); }}
                         onBlur={function() { setFocusedField(null); }}
-                        style={{ border: "none", outline: "none", fontFamily: work, fontSize: 14, fontWeight: 500, width: "100%", background: "transparent", color: C.text }} />
+                        style={{ border: "none", outline: "none", fontFamily: work, fontSize: 14, fontWeight: 500, width: "100%", background: "transparent", color: S.text }} />
                     </div>
-                    <div style={{ flex: 1, background: C.surface, borderRadius: 16, padding: 16, border: focusedField === "balDate" ? "0.5px solid " + C.textSec : "0.5px solid transparent" }}>
-                      <div style={{ fontFamily: work, fontSize: 11, color: C.textSec, marginBottom: 8 }}>As of Date</div>
+                    <div style={{ flex: 1, background: S.surface, borderRadius: 16, height: 80, padding: "0 16px", display: "flex", flexDirection: "column", justifyContent: "center", border: focusedField === "balDate" ? "0.5px solid " + S.textSubtle : "0.5px solid transparent" }}>
+                      <div style={{ fontFamily: work, fontSize: 11, color: S.textSubtle, marginBottom: 8 }}>As of Date</div>
                       <DateField value={editBalDate} isFocused={focusedField === "balDate"}
                         onChange={function(v) { setEditBalDate(v); setSettingsDirty(true); }}
                         onFocus={function() { setFocusedField("balDate"); }}
@@ -2042,8 +2085,8 @@ function PTOTrackerApp() {
                 </div>
 
                 {/* CALENDAR VIEW section */}
-                <div style={{ borderTop: "0.5px solid " + C.border, paddingTop: 8, marginBottom: 64 }}>
-                  <div style={{ fontFamily: work, fontSize: 11, textTransform: "uppercase", color: C.textSec, letterSpacing: 0.5, marginBottom: 12 }}>Calendar View</div>
+                <div style={{ borderTop: "0.5px solid " + S.border, paddingTop: 8, marginBottom: 64 }}>
+                  <div style={{ fontFamily: work, fontSize: 11, textTransform: "uppercase", color: S.textSubtle, letterSpacing: 0.5, marginBottom: 12 }}>Calendar View</div>
                   <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
                     <div
                       onClick={function() {
@@ -2056,22 +2099,22 @@ function PTOTrackerApp() {
                           setCalFading(false);
                         }, 150);
                       }}
-                      style={{ background: C.surface, borderRadius: 16, padding: 16, cursor: "pointer" }}>
-                      <div style={{ fontFamily: work, fontSize: 11, color: C.textSec, marginBottom: 8 }}>Week starts on</div>
+                      style={{ background: S.surface, borderRadius: 16, height: 80, padding: "0 16px", display: "flex", flexDirection: "column", justifyContent: "center", cursor: "pointer" }}>
+                      <div style={{ fontFamily: work, fontSize: 11, color: S.textSubtle, marginBottom: 8 }}>Week starts on</div>
                       <div style={{ fontFamily: work, fontSize: 14 }}>
-                        <span style={{ color: weekStart === "sunday" ? C.text : C.textSec, fontWeight: weekStart === "sunday" ? 500 : 400 }}>Sunday</span>
-                        <span style={{ color: C.textSec, margin: "0 4px", fontWeight: 400 }}>/</span>
-                        <span style={{ color: weekStart === "monday" ? C.text : C.textSec, fontWeight: weekStart === "monday" ? 500 : 400 }}>Monday</span>
+                        <span style={{ color: weekStart === "sunday" ? S.text : S.textSubtle, fontWeight: weekStart === "sunday" ? 500 : 400 }}>Sunday</span>
+                        <span style={{ color: S.textSubtle, margin: "0 4px", fontWeight: 400 }}>/</span>
+                        <span style={{ color: weekStart === "monday" ? S.text : S.textSubtle, fontWeight: weekStart === "monday" ? 500 : 400 }}>Monday</span>
                       </div>
                     </div>
                     <div
                       onClick={function() { var next = showHolidays === "all" ? "acn" : "all"; setShowHolidays(next); persistSettings({ showHolidays: next }); userChangedSettingsRef.current = true; }}
-                      style={{ background: C.surface, borderRadius: 16, padding: 16, cursor: "pointer" }}>
-                      <div style={{ fontFamily: work, fontSize: 11, color: C.textSec, marginBottom: 8 }}>Show US Holidays</div>
+                      style={{ background: S.surface, borderRadius: 16, height: 80, padding: "0 16px", display: "flex", flexDirection: "column", justifyContent: "center", cursor: "pointer" }}>
+                      <div style={{ fontFamily: work, fontSize: 11, color: S.textSubtle, marginBottom: 8 }}>Show US Holidays</div>
                       <div style={{ fontFamily: work, fontSize: 14 }}>
-                        <span style={{ color: showHolidays === "acn" ? C.text : C.textSec, fontWeight: showHolidays === "acn" ? 500 : 400 }}>ACN only</span>
-                        <span style={{ color: C.textSec, margin: "0 4px", fontWeight: 400 }}>/</span>
-                        <span style={{ color: showHolidays === "all" ? C.text : C.textSec, fontWeight: showHolidays === "all" ? 500 : 400 }}>All holidays</span>
+                        <span style={{ color: showHolidays === "acn" ? S.text : S.textSubtle, fontWeight: showHolidays === "acn" ? 500 : 400 }}>ACN only</span>
+                        <span style={{ color: S.textSubtle, margin: "0 4px", fontWeight: 400 }}>/</span>
+                        <span style={{ color: showHolidays === "all" ? S.text : S.textSubtle, fontWeight: showHolidays === "all" ? 500 : 400 }}>All holidays</span>
                       </div>
                     </div>
                   </div>
@@ -2083,10 +2126,10 @@ function PTOTrackerApp() {
             {panelTab === "write" ? (
               <div style={{ paddingTop: isMobile ? 28 : 40 }}>
                 {writePlanGroups.length === 0 ? (
-                  <div style={{ fontFamily: work, fontSize: 12, color: C.textSec, lineHeight: 1.4 }}>No planned dates yet.</div>
+                  <div style={{ fontFamily: work, fontSize: 12, color: S.textSubtle, lineHeight: 1.4 }}>No planned dates yet.</div>
                 ) : (
                   <div>
-                  <div style={{ fontFamily: work, fontSize: 11, textTransform: "uppercase", color: C.textSec, letterSpacing: 0.5, marginBottom: 16 }}>Planned Dates</div>
+                  <div style={{ fontFamily: work, fontSize: 11, textTransform: "uppercase", color: S.textSubtle, letterSpacing: 0.5, marginBottom: 16 }}>Planned Dates</div>
                   <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
                     {writePlanGroups.map(function(group, idx) {
                       var isSelected = writeSelectedGroups.indexOf(idx) !== -1;
@@ -2149,25 +2192,25 @@ function PTOTrackerApp() {
                             }, groupYear !== viewYear ? 50 : 0);
                           }}
                           style={{
-                            background: isApproved ? "#ADFF55" : C.surface,
-                            borderRadius: 16, padding: "14px 16px",
+                            background: isApproved ? S.pto : S.surface,
+                            borderRadius: 16, height: 80, padding: "0 16px",
                             display: "flex", alignItems: "center", justifyContent: "space-between",
                             cursor: isApproved ? "default" : "pointer",
-                            border: isSelected ? "0.5px solid " + C.textSec : "0.5px solid transparent",
+                            border: isSelected ? "0.5px solid " + S.textSubtle : "0.5px solid transparent",
                           }}>
                           <div>
-                            <div style={{ fontFamily: work, fontSize: 14, color: C.text, marginBottom: 8 }}>{dateRange}</div>
-                            <div style={{ fontFamily: work, fontSize: 12, color: C.textSec }}>{subtitle.join(", ")}</div>
+                            <div style={{ fontFamily: work, fontSize: 14, color: S.text, marginBottom: 8 }}>{dateRange}</div>
+                            <div style={{ fontFamily: work, fontSize: 12, color: S.textSubtle }}>{subtitle.join(", ")}</div>
                           </div>
                           <div style={{
                             width: 24, height: 24, borderRadius: 999, flexShrink: 0,
-                            border: (isSelected || isApproved) ? "none" : "1.5px solid " + C.border,
-                            background: isApproved ? "#FFFFFF" : (isSelected ? C.text : "transparent"),
+                            border: (isSelected || isApproved) ? "none" : "1.5px solid " + S.border,
+                            background: isApproved ? S.surface : (isSelected ? S.text : "transparent"),
                             display: "flex", alignItems: "center", justifyContent: "center",
                           }}>
                             {(isSelected || isApproved) ? (
                               <svg width="11" height="8" viewBox="0 0 11 8" fill="none">
-                                <path d="M1 4L4 7L10 1" stroke={isApproved ? "#70D900" : "white"} strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"/>
+                                <path d="M1 4L4 7L10 1" stroke={isApproved ? S.unpaid : S.surface} strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"/>
                               </svg>
                             ) : null}
                           </div>
@@ -2180,9 +2223,9 @@ function PTOTrackerApp() {
 
                 {writeSelectedGroups.length > 0 && writePlanGroups.length > 0 ? (
                   <div style={{ marginTop: 64 }}>
-                    <div style={{ height: "0.5px", background: C.border, marginBottom: 8 }} />
-                    <div style={{ fontFamily: work, fontSize: 11, textTransform: "uppercase", color: C.textSec, letterSpacing: 0.5, marginBottom: 16 }}>Text</div>
-                    <div style={{ background: C.surface, borderRadius: 16, padding: "16px 20px", userSelect: "text" }}>
+                    <div style={{ height: "0.5px", background: S.border, marginBottom: 8 }} />
+                    <div style={{ fontFamily: work, fontSize: 11, textTransform: "uppercase", color: S.textSubtle, letterSpacing: 0.5, marginBottom: 16 }}>Text</div>
+                    <div style={{ background: S.surface, borderRadius: 16, padding: "16px 20px", userSelect: "text" }}>
                       {generateEmailText().split("\n").map(function(line, i) {
                         var isYearLine = /^\d{4}$/.test(line);
                         var isDateLine = !isYearLine && writeSelectedGroups.some(function(idx) {
@@ -2191,7 +2234,7 @@ function PTOTrackerApp() {
                         return (
                           <div key={i} style={{
                             fontFamily: work, fontSize: 13, lineHeight: 1.8,
-                            color: isYearLine ? C.textSec : C.text,
+                            color: isYearLine ? S.textSubtle : S.text,
                             fontWeight: isDateLine ? 600 : 400,
                             minHeight: line === "" ? "1em" : undefined,
                           }}>{line || "\u00a0"}</div>
@@ -2209,7 +2252,7 @@ function PTOTrackerApp() {
           {(panelTab === "reco" && previewDates.length > 0) || (panelTab === "settings" && settingsDirty) || (panelTab === "write" && writeSelectedGroups.length > 0 && writePlanGroups.length > 0) ? (
             <div style={{
               position: "absolute", bottom: 0, left: 0, right: 0,
-              background: "linear-gradient(to bottom, rgba(248,248,248,0) 0%, rgba(248,248,248,0.85) 45%, " + C.panelBg + " 65%)",
+              background: "linear-gradient(to bottom, rgba(248,248,248,0) 0%, rgba(248,248,248,0.85) 45%, " + S.surfaceAlt + " 65%)",
               padding: isMobile ? "60px 20px 20px 20px" : "80px 24px 24px 24px",
             }}>
               {panelTab === "write" ? (
@@ -2219,8 +2262,8 @@ function PTOTrackerApp() {
                   }}
                   style={{
                     width: "100%", height: 48, borderRadius: 999,
-                    background: C.text, border: "none",
-                    fontFamily: work, fontSize: 13, fontWeight: 600, color: C.bg, cursor: "pointer",
+                    background: S.text, border: "none",
+                    fontFamily: work, fontSize: 13, fontWeight: 600, color: S.bg, cursor: "pointer",
                     textTransform: "uppercase", letterSpacing: 0.5,
                   }}>
                   Copy
@@ -2242,8 +2285,8 @@ function PTOTrackerApp() {
                     }}
                     style={{
                       flex: 1, height: 48, borderRadius: 999,
-                      background: C.surface, border: "1px solid " + C.border,
-                      fontFamily: work, fontSize: 13, fontWeight: 600, color: C.text, cursor: "pointer",
+                      background: S.surface, border: "1px solid " + S.border,
+                      fontFamily: work, fontSize: 13, fontWeight: 600, color: S.text, cursor: "pointer",
                       textTransform: "uppercase", letterSpacing: 0.5,
                     }}>
                     Cancel
@@ -2272,8 +2315,8 @@ function PTOTrackerApp() {
                     }}
                     style={{
                       flex: 1, height: 48, borderRadius: 999,
-                      background: C.text, border: "none",
-                      fontFamily: work, fontSize: 13, fontWeight: 600, color: C.bg, cursor: "pointer",
+                      background: S.text, border: "none",
+                      fontFamily: work, fontSize: 13, fontWeight: 600, color: S.bg, cursor: "pointer",
                       textTransform: "uppercase", letterSpacing: 0.5,
                     }}>
                     {panelTab === "reco" ? "Apply" : "Update"}
@@ -2311,11 +2354,12 @@ function PTOTrackerApp() {
           0%   { opacity: 1; transform: translateX(-50%) translateY(0); }\
           100% { opacity: 0; transform: translateX(-50%) translateY(12px); }\
         }\
-        input[type='range'].reco-slider { -webkit-appearance: none; appearance: none; width: 100%; height: 1px; background: #E3E3E3; border-radius: 1px; outline: none; cursor: pointer; margin: 0; display: block; }\
-        input[type='range'].reco-slider::-webkit-slider-thumb { -webkit-appearance: none; width: 18px; height: 18px; border-radius: 50%; background: white; border: 1px solid #E3E3E3; box-shadow: 0 1px 4px rgba(0,0,0,0.12); cursor: grab; }\
-        input[type='range'].reco-slider::-webkit-slider-thumb:active { cursor: grabbing; }\
-        input[type='range'].reco-slider::-moz-range-thumb { width: 18px; height: 18px; border-radius: 50%; background: white; border: 1px solid #E3E3E3; box-shadow: 0 1px 4px rgba(0,0,0,0.12); cursor: grab; border-box: border-box; }\
-      "}</style>
+      " +
+        "input[type='range'].reco-slider { -webkit-appearance: none; appearance: none; width: 100%; height: 1px; background: " + S.border + "; border-radius: 1px; outline: none; cursor: pointer; margin: 0; display: block; }" +
+        "input[type='range'].reco-slider::-webkit-slider-thumb { -webkit-appearance: none; width: 18px; height: 18px; border-radius: 50%; background: " + S.surface + "; border: 1px solid " + S.border + "; box-shadow: 0 1px 4px rgba(0,0,0,0.12); cursor: grab; }" +
+        "input[type='range'].reco-slider::-webkit-slider-thumb:active { cursor: grabbing; }" +
+        "input[type='range'].reco-slider::-moz-range-thumb { width: 18px; height: 18px; border-radius: 50%; background: " + S.surface + "; border: 1px solid " + S.border + "; box-shadow: 0 1px 4px rgba(0,0,0,0.12); cursor: grab; border-box: border-box; }"
+      }</style>
     </div>
   );
 }
