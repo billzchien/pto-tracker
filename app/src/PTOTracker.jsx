@@ -91,35 +91,88 @@ var P = {
   gray45:   "#757575",
   black:    "#000000",
 
+  ink:      "#141B13",
+  inkDeep:  "#080C08",
+
   lime:     "#ADFF55",
   limeDeep: "#70D900",
+  lime05:   "#E0FF66",
+  lime35:   "#4C9928",
+  lime55:   "#386828",
+  lime75:   "#263E21",
+  mint:     "#C8FFD6",
+
   yellow:   "#D9FF00",
   yellowHi: "#FCF937",
   coral:    "#FF715B",
   maroon:   "#400000",
 };
 
-// Semantic tokens — what each color means in the UI.
-var S = {
-  bg:          P.white,
-  surface:     P.white,
-  surfaceAlt:  P.gray05,
-  border:      P.gray15,
+// Semantic tokens — light + dark variants. `S` is the live token object
+// (mutated by applyTheme on every render so module-global reads stay in sync).
+var LIGHT_S = {
+  bg:            P.white,
+  surface:       P.white,
+  surfaceAlt:    P.gray05,
+  surfaceAltRgb: "248,248,248",
+  border:        P.gray15,
 
-  text:        P.black,
-  textSubtle:  P.gray45,
-  textFaint:   P.gray25,
+  text:          P.black,
+  textSubtle:    P.gray45,
+  textFaint:     P.gray25,
 
-  today:       P.black,
-  todayText:   P.white,
+  iconSubtle:    P.gray45,
+  iconOnPto:     P.white,
 
-  pto:         P.lime,
-  ptoOver:     P.coral,
-  ptoOverText: P.maroon,
-  cul:         P.yellow,
-  holiday:     P.yellowHi,
-  unpaid:      P.limeDeep,
+  today:         P.black,
+  todayText:     P.white,
+
+  pto:           P.lime,
+  ptoOver:       P.coral,
+  ptoOverText:   P.maroon,
+  cul:           P.yellow,
+  holiday:       P.yellowHi,
+  unpaid:        P.limeDeep,
+
+  shadowHeader:  "0 1px 12px rgba(0,0,0,0.08)",
+  shadowThumb:   "0 1px 4px rgba(0,0,0,0.12)",
 };
+
+var DARK_S = {
+  bg:            P.ink,
+  surface:       P.ink,
+  surfaceAlt:    P.inkDeep,
+  surfaceAltRgb: "8,12,8",
+  border:        P.lime75,
+
+  text:          P.lime,
+  textSubtle:    P.lime55,
+  textFaint:     P.lime75,
+
+  iconSubtle:    P.lime35,
+  iconOnPto:     P.inkDeep,
+
+  today:         P.mint,
+  todayText:     P.inkDeep,
+
+  pto:           P.lime,
+  ptoOver:       P.coral,
+  ptoOverText:   P.maroon,
+  cul:           P.lime05,
+  holiday:       P.lime75,
+  unpaid:        P.lime35,
+
+  shadowHeader:  "0 2px 16px rgba(0,0,0,0.4)",
+  shadowThumb:   "0 2px 6px rgba(0,0,0,0.4)",
+};
+
+var S = Object.assign({}, LIGHT_S);
+function applyTheme(mode) {
+  var src = mode === "dark" ? DARK_S : LIGHT_S;
+  Object.keys(S).forEach(function(k) { if (!(k in src)) delete S[k]; });
+  Object.keys(src).forEach(function(k) { S[k] = src[k]; });
+  document.documentElement.style.background = src.bg;
+}
 
 function DateField({ value, onChange, onFocus, onBlur, isFocused }) {
   var parts = (value || "").split("-");
@@ -490,11 +543,11 @@ function LockScreen({ onUnlock }) {
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none"
               style={{ animation: 'lockSpin 700ms linear infinite' }}>
               <circle cx="8" cy="8" r="5.5" stroke="rgba(0,0,0,0.15)" strokeWidth="1"/>
-              <path d="M8 2.5 A5.5 5.5 0 0 1 13.5 8" stroke={S.text} strokeWidth="1" strokeLinecap="round"/>
+              <path d="M8 2.5 A5.5 5.5 0 0 1 13.5 8" stroke={S.iconSubtle} strokeWidth="1" strokeLinecap="round"/>
             </svg>
           ) : (
             <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-              <path d="M5 2L10 7L5 12" stroke={S.textSubtle} strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"/>
+              <path d="M5 2L10 7L5 12" stroke={S.iconSubtle} strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"/>
             </svg>
           )}
         </div>
@@ -507,6 +560,33 @@ export default function PTOTracker() {
   var alreadyUnlocked = sessionStorage.getItem('pto-unlocked') === '1';
   var [unlocked, setUnlocked] = useState(alreadyUnlocked);
 
+  var [theme, setTheme] = useState(function() {
+    try {
+      var raw = localStorage.getItem(STORAGE_KEY);
+      if (raw) {
+        var p = JSON.parse(raw);
+        if (p && (p.theme === "light" || p.theme === "dark" || p.theme === "system")) return p.theme;
+      }
+    } catch(e) {}
+    return "system";
+  });
+  var [systemDark, setSystemDark] = useState(function() {
+    return typeof window !== "undefined" && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+  });
+  useEffect(function() {
+    if (typeof window === "undefined" || !window.matchMedia) return;
+    var mq = window.matchMedia('(prefers-color-scheme: dark)');
+    function onChange(e) { setSystemDark(e.matches); }
+    if (mq.addEventListener) mq.addEventListener("change", onChange);
+    else if (mq.addListener) mq.addListener(onChange);
+    return function() {
+      if (mq.removeEventListener) mq.removeEventListener("change", onChange);
+      else if (mq.removeListener) mq.removeListener(onChange);
+    };
+  }, []);
+  var resolvedTheme = theme === "system" ? (systemDark ? "dark" : "light") : theme;
+  applyTheme(resolvedTheme);
+
   if (!unlocked) {
     return (
       <LockScreen onUnlock={function() {
@@ -515,7 +595,7 @@ export default function PTOTracker() {
       }} />
     );
   }
-  return <PTOTrackerApp />;
+  return <PTOTrackerApp theme={theme} setTheme={setTheme} />;
 }
 
 function oooEase(x) {
@@ -551,7 +631,7 @@ function smoothScrollTo(container, targetEl, duration) {
   requestAnimationFrame(tick);
 }
 
-function PTOTrackerApp() {
+function PTOTrackerApp({ theme, setTheme }) {
   var [fadeIn, setFadeIn] = useState(false);
   var [days, setDays] = useState(DEFAULT_DATA);
   var [viewYear, setViewYear] = useState(2026);
@@ -618,6 +698,7 @@ function PTOTrackerApp() {
   var redoRef = useRef([]);
   var daysRef = useRef(days);
   var calendarScrollRef = useRef(null);
+  var [headerScrolled, setHeaderScrolled] = useState(false);
 
   // Immediate Supabase upsert with current state + overrides. Avoids the
   // useEffect-deferred upsert race where a fast refresh cancels the request.
@@ -625,7 +706,7 @@ function PTOTrackerApp() {
     var data = {
       bal: bal, balDate: balDate, userName: userName, editCL: editCL,
       approvedGroups: approvedGroups, lockedDates: lockedDates, startStr: startStr,
-      weekStart: weekStart, showHolidays: showHolidays
+      weekStart: weekStart, showHolidays: showHolidays, theme: theme
     };
     if (overrides) Object.assign(data, overrides);
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); } catch(e) {}
@@ -633,6 +714,14 @@ function PTOTrackerApp() {
   }
 
   useEffect(function() { daysRef.current = days; }, [days]);
+
+  useEffect(function() {
+    var el = calendarScrollRef.current;
+    if (!el) return;
+    function onScroll() { setHeaderScrolled(el.scrollTop > 0); }
+    el.addEventListener("scroll", onScroll, { passive: true });
+    return function() { el.removeEventListener("scroll", onScroll); };
+  }, []);
 
   useLayoutEffect(function() {
     if (!tooltipDivRef.current) { setTooltipShift(0); return; }
@@ -719,6 +808,7 @@ function PTOTrackerApp() {
           if (p2.startStr) setStartStr(p2.startStr);
           if (p2.weekStart) setWeekStart(p2.weekStart);
           if (p2.showHolidays) setShowHolidays(p2.showHolidays);
+          if (p2.theme === "light" || p2.theme === "dark" || p2.theme === "system") setTheme(p2.theme);
         }
         if (result.storedName) setUserName(result.storedName);
       } catch(e) {}
@@ -747,7 +837,7 @@ function PTOTrackerApp() {
 
   useEffect(function() {
     if (!loaded) return;
-    var data = { bal: bal, balDate: balDate, userName: userName, editCL: editCL, approvedGroups: approvedGroups, lockedDates: lockedDates, startStr: startStr, weekStart: weekStart, showHolidays: showHolidays };
+    var data = { bal: bal, balDate: balDate, userName: userName, editCL: editCL, approvedGroups: approvedGroups, lockedDates: lockedDates, startStr: startStr, weekStart: weekStart, showHolidays: showHolidays, theme: theme };
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
       localStorage.setItem("bill-pto-userName", userName);
@@ -760,7 +850,7 @@ function PTOTrackerApp() {
       userChangedSettingsRef.current = false;
       supabase.from('pto_settings').upsert({ id: 1, data: data }).then(function() {});
     }
-  }, [bal, balDate, loaded, userName, editCL, approvedGroups, lockedDates, startStr, weekStart, showHolidays]);
+  }, [bal, balDate, loaded, userName, editCL, approvedGroups, lockedDates, startStr, weekStart, showHolidays, theme]);
 
   // Sync edit fields when settings tab opens
   useEffect(function() {
@@ -1131,8 +1221,11 @@ function PTOTrackerApp() {
             if (pp > today0 && pp <= ldDate)
               acc += pp >= mil10D ? ACCRUAL_RATE_POST10 : pp >= milD ? ACCRUAL_RATE_POST5 : ACCRUAL_RATE_PRE5;
           });
-          var usedBy = allFuturePlanDates.filter(function(d) { return d <= ld; }).length;
           var additional = newDates.filter(function(d) { return d <= ld; }).length;
+          // Only blame this opp if it actually contributes dates before `ld`.
+          // Without this guard, an existing over-commit blocks every future opp.
+          if (additional === 0) continue;
+          var usedBy = allFuturePlanDates.filter(function(d) { return d <= ld; }).length;
           if ((currentBal + acc - (usedBy + additional) * HOURS_PER_DAY) < 0) return false;
         }
       }
@@ -1314,11 +1407,11 @@ function PTOTrackerApp() {
         cellColor = S.ptoOverText;
       } else {
         cellBg = S.pto;
-        cellColor = S.text;
+        cellColor = P.inkDeep;
       }
     } else if (type === "PLAN_CUL") {
       cellBg = S.cul;
-      cellColor = S.text;
+      cellColor = P.inkDeep;
     } else if (type === "PLAN_UNPAID") {
       cellBg = "transparent";
       cellColor = S.text;
@@ -1336,7 +1429,7 @@ function PTOTrackerApp() {
     // Preview override — bg at 50% opacity, text stays solid
     if (isPreview && !type && !hol) {
       cellBg = (previewCulDates.indexOf(key) !== -1 ? S.cul : S.pto) + "80";
-      cellColor = S.text;
+      cellColor = P.inkDeep;
     }
 
     // Past dates: dim the number regardless of type
@@ -1454,9 +1547,8 @@ function PTOTrackerApp() {
           <svg style={{ position: "absolute", inset: 0, width: "100%", height: "100%", overflow: "visible" }} viewBox="0 0 100 100">
             <circle cx="50" cy="50" r="49" fill="none"
               stroke={type === "PLAN_UNPAID" ? S.pto : S.border}
-              strokeWidth="0.8"
+              strokeWidth={type === "PLAN_UNPAID" ? (S.bg === P.ink ? 0.8 : 1.2) : 0.8}
               strokeDasharray="4 3"
-              strokeWidth="1.5"
               vectorEffect="non-scaling-stroke"
             />
           </svg>
@@ -1552,7 +1644,7 @@ function PTOTrackerApp() {
           }}>
           <div style={{ display: "grid", gridTemplateColumns: "3.5px 3.5px", gap: 3, transform: showPanel ? "rotate(360deg)" : "rotate(0deg)", transition: "transform 400ms cubic-bezier(0.4, 0, 0, 1)" }}>
             {[0,1,2,3].map(function(i) {
-              return <div key={i} style={{ width: 3.5, height: 3.5, borderRadius: 999, background: showPanel ? S.bg : S.textSubtle }} />;
+              return <div key={i} style={{ width: 3.5, height: 3.5, borderRadius: 999, background: showPanel ? S.iconOnPto : S.iconSubtle }} />;
             })}
           </div>
         </div>
@@ -1562,8 +1654,8 @@ function PTOTrackerApp() {
       <div style={{ flex: 1, minWidth: 0, height: "100vh", overflow: "hidden", display: "flex", flexDirection: "column" }}>
 
         {/* Top Section */}
-        <div style={{ flexShrink: 0, zIndex: 600, background: S.bg }}>
-          <div style={{ padding: isMobile ? "20px 20px 0 20px" : "24px 40px 0 40px" }}>
+        <div style={{ flexShrink: 0, zIndex: 600, background: S.bg, boxShadow: headerScrolled ? S.shadowHeader : "none", transition: "box-shadow 200ms cubic-bezier(0.4, 0, 0, 1)" }}>
+          <div style={{ padding: isMobile ? "20px 20px 24px 20px" : "24px 40px 24px 40px" }}>
             {/* Mobile stats row (compact) - hidden when panel active */}
             {isMobile && (
               <div style={{ display: "flex", marginBottom: showPanel ? 0 : 40, maxHeight: showPanel ? 0 : 120, opacity: showPanel ? 0 : 1, overflow: "hidden", transition: "max-height 400ms cubic-bezier(0.4, 0, 0, 1), opacity 400ms cubic-bezier(0.4, 0, 0, 1), margin-bottom 400ms cubic-bezier(0.4, 0, 0, 1)" }}>
@@ -1619,7 +1711,7 @@ function PTOTrackerApp() {
                     }}>
                     <div style={{ display: "grid", gridTemplateColumns: "3.5px 3.5px", gap: 3, transform: showPanel ? "rotate(360deg)" : "rotate(0deg)", transition: "transform 400ms cubic-bezier(0.4, 0, 0, 1)" }}>
                       {[0,1,2,3].map(function(i) {
-                        return <div key={i} style={{ width: 3.5, height: 3.5, borderRadius: 999, background: showPanel ? S.bg : S.textSubtle }} />;
+                        return <div key={i} style={{ width: 3.5, height: 3.5, borderRadius: 999, background: showPanel ? S.iconOnPto : S.iconSubtle }} />;
                       })}
                     </div>
                   </div>
@@ -1632,22 +1724,22 @@ function PTOTrackerApp() {
                   flex: isMobile ? 1 : "none",
                 }}>
                   <div onClick={function() { setViewYear(viewYear - 1); smoothScrollTop(calendarScrollRef.current, 400); }}
-                    onMouseEnter={function(e){ e.currentTarget.style.background = S.border; e.currentTarget.style.color = S.textSubtle; }}
-                    onMouseLeave={function(e){ e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = S.textSubtle; }}
+                    onMouseEnter={function(e){ e.currentTarget.style.background = S.border; e.currentTarget.style.color = S.iconSubtle; }}
+                    onMouseLeave={function(e){ e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = S.iconSubtle; }}
                     onMouseDown={function(e){ e.currentTarget.style.background = S.text; e.currentTarget.style.color = S.bg; }}
-                    onMouseUp={function(e){ e.currentTarget.style.background = S.border; e.currentTarget.style.color = S.textSubtle; }}
-                    style={{ width: isMobile ? 54 : 48, height: isMobile ? 54 : 48, borderRadius: 999, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", userSelect: "none", color: S.textSubtle }}>
+                    onMouseUp={function(e){ e.currentTarget.style.background = S.border; e.currentTarget.style.color = S.iconSubtle; }}
+                    style={{ width: isMobile ? 54 : 48, height: isMobile ? 54 : 48, borderRadius: 999, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", userSelect: "none", color: S.iconSubtle }}>
                     <svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">
                       <path d="M9 2L4 7L9 12" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"/>
                     </svg>
                   </div>
                   <span style={{ fontFamily: grotesk, fontWeight: 500, fontSize: 20, padding: "0 16px", flex: isMobile ? 1 : "none", textAlign: "center" }}>{viewYear}</span>
                   <div onClick={function() { setViewYear(viewYear + 1); smoothScrollTop(calendarScrollRef.current, 400); }}
-                    onMouseEnter={function(e){ e.currentTarget.style.background = S.border; e.currentTarget.style.color = S.textSubtle; }}
-                    onMouseLeave={function(e){ e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = S.textSubtle; }}
+                    onMouseEnter={function(e){ e.currentTarget.style.background = S.border; e.currentTarget.style.color = S.iconSubtle; }}
+                    onMouseLeave={function(e){ e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = S.iconSubtle; }}
                     onMouseDown={function(e){ e.currentTarget.style.background = S.text; e.currentTarget.style.color = S.bg; }}
-                    onMouseUp={function(e){ e.currentTarget.style.background = S.border; e.currentTarget.style.color = S.textSubtle; }}
-                    style={{ width: isMobile ? 54 : 48, height: isMobile ? 54 : 48, borderRadius: 999, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", userSelect: "none", color: S.textSubtle }}>
+                    onMouseUp={function(e){ e.currentTarget.style.background = S.border; e.currentTarget.style.color = S.iconSubtle; }}
+                    style={{ width: isMobile ? 54 : 48, height: isMobile ? 54 : 48, borderRadius: 999, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", userSelect: "none", color: S.iconSubtle }}>
                     <svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">
                       <path d="M5 2L10 7L5 12" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"/>
                     </svg>
@@ -1657,8 +1749,6 @@ function PTOTrackerApp() {
               </div>
             </div>
           </div>
-          {/* Divider */}
-          <div style={{ height: "0.5px", background: S.border, margin: isMobile ? "16px 20px 0 20px" : "24px 40px 0 40px" }} />
         </div>
 
         {/* Calendar Grid */}
@@ -1868,7 +1958,7 @@ function PTOTrackerApp() {
             {panelTab === "overview" ? (
               <div style={{ paddingTop: isMobile ? 28 : 40 }}>
                 {/* Balance Section — first: no top border */}
-                <div style={{ marginBottom: 64 }}>
+                <div style={{ marginBottom: 48 }}>
                   <div style={{ fontFamily: work, fontSize: 11, textTransform: "uppercase", color: S.textSubtle, letterSpacing: 0.5, marginBottom: 20 }}>{"Balance FY" + viewYear}</div>
                   <div style={{ display: "flex", gap: 24 }}>
                     <div style={{ flex: 1 }}>
@@ -1897,7 +1987,7 @@ function PTOTrackerApp() {
                 </div>
 
                 {/* Accrual Rate Section */}
-                <div style={{ borderTop: "0.5px solid " + S.border, paddingTop: 8, marginBottom: 64 }}>
+                <div style={{ borderTop: "0.5px solid " + S.border, paddingTop: 8, marginBottom: 48 }}>
                   <div style={{ fontFamily: work, fontSize: 11, textTransform: "uppercase", color: S.textSubtle, letterSpacing: 0.5, marginBottom: 20 }}>Accrual Rate</div>
                   {(function() {
                     var now = new Date(); now.setHours(0,0,0,0);
@@ -1925,7 +2015,7 @@ function PTOTrackerApp() {
                 </div>
 
                 {/* Used Vacation Days Section */}
-                <div style={{ borderTop: "0.5px solid " + S.border, paddingTop: 8, marginBottom: 64 }}>
+                <div style={{ borderTop: "0.5px solid " + S.border, paddingTop: 8, marginBottom: 48 }}>
                   <div style={{ fontFamily: work, fontSize: 11, textTransform: "uppercase", color: S.textSubtle, letterSpacing: 0.5, marginBottom: 20 }}>Used Vacation Days</div>
                   <div style={{ display: "flex", gap: 24 }}>
                     <div style={{ flex: 1 }}>
@@ -2002,7 +2092,7 @@ function PTOTrackerApp() {
                                     var oppYear = parseInt(o.date.split("-")[0]); if (oppYear !== viewYear) setViewYear(oppYear);
                                   }
                                 }}
-                                style={{ background: S.surface, borderRadius: 16, height: 80, padding: "0 16px", display: "flex", flexDirection: "column", justifyContent: "center", cursor: "pointer", border: isPreviewing ? "0.5px solid " + S.textSubtle : "0.5px solid transparent" }}>
+                                style={{ background: S.surface, borderRadius: 16, height: 76, padding: "0 16px", display: "flex", flexDirection: "column", justifyContent: "center", cursor: "pointer", border: isPreviewing ? "0.5px solid " + S.textSubtle : "0.5px solid transparent" }}>
                                 <div style={{ fontFamily: work, fontSize: 14, color: S.text, marginBottom: 8 }}>{dateRange}</div>
                                 {(function() {
                                   var existing = o.alreadyPlannedInSpan || [];
@@ -2033,10 +2123,10 @@ function PTOTrackerApp() {
             {panelTab === "settings" ? (
               <div style={{ paddingTop: isMobile ? 28 : 40 }}>
                 {/* INFO section — first: no top border */}
-                <div style={{ marginBottom: 64 }}>
+                <div style={{ marginBottom: 48 }}>
                   <div style={{ fontFamily: work, fontSize: 11, textTransform: "uppercase", color: S.textSubtle, letterSpacing: 0.5, marginBottom: 12 }}>Info</div>
                   <div style={{ display: "flex", gap: 4, marginBottom: 4 }}>
-                    <div style={{ flex: 1, background: S.surface, borderRadius: 16, height: 80, padding: "0 16px", display: "flex", flexDirection: "column", justifyContent: "center", border: focusedField === "name" ? "0.5px solid " + S.textSubtle : "0.5px solid transparent" }}>
+                    <div style={{ flex: 1, background: S.surface, borderRadius: 16, height: 76, padding: "0 16px", display: "flex", flexDirection: "column", justifyContent: "center", border: focusedField === "name" ? "0.5px solid " + S.textSubtle : "0.5px solid transparent" }}>
                       <div style={{ fontFamily: work, fontSize: 11, color: S.textSubtle, marginBottom: 8 }}>Name</div>
                       <input type="text" value={editName}
                         onChange={function(e) { setEditName(e.target.value); setSettingsDirty(true); }}
@@ -2044,7 +2134,7 @@ function PTOTrackerApp() {
                         onBlur={function() { setFocusedField(null); }}
                         style={{ border: "none", outline: "none", fontFamily: work, fontSize: 14, fontWeight: 500, width: "100%", background: "transparent", color: S.text }} />
                     </div>
-                    <div style={{ flex: 1, background: S.surface, borderRadius: 16, height: 80, padding: "0 16px", display: "flex", flexDirection: "column", justifyContent: "center", border: focusedField === "cl" ? "0.5px solid " + S.textSubtle : "0.5px solid transparent" }}>
+                    <div style={{ flex: 1, background: S.surface, borderRadius: 16, height: 76, padding: "0 16px", display: "flex", flexDirection: "column", justifyContent: "center", border: focusedField === "cl" ? "0.5px solid " + S.textSubtle : "0.5px solid transparent" }}>
                       <div style={{ fontFamily: work, fontSize: 11, color: S.textSubtle, marginBottom: 8 }}>Management Level</div>
                       <input type="text" value={editCL}
                         onChange={function(e) { setEditCL(e.target.value); setSettingsDirty(true); }}
@@ -2053,7 +2143,7 @@ function PTOTrackerApp() {
                         style={{ border: "none", outline: "none", fontFamily: work, fontSize: 14, fontWeight: 500, width: "100%", background: "transparent", color: S.text }} />
                     </div>
                   </div>
-                  <div style={{ background: S.surface, borderRadius: 16, height: 80, padding: "0 16px", display: "flex", flexDirection: "column", justifyContent: "center", border: focusedField === "milestone" ? "0.5px solid " + S.textSubtle : "0.5px solid transparent" }}>
+                  <div style={{ background: S.surface, borderRadius: 16, height: 76, padding: "0 16px", display: "flex", flexDirection: "column", justifyContent: "center", border: focusedField === "milestone" ? "0.5px solid " + S.textSubtle : "0.5px solid transparent" }}>
                     <div style={{ fontFamily: work, fontSize: 11, color: S.textSubtle, marginBottom: 8 }}>Starting Date</div>
                     <DateField value={editStart} isFocused={focusedField === "milestone"}
                       onChange={function(v) { setEditStart(v); setSettingsDirty(true); }}
@@ -2063,10 +2153,10 @@ function PTOTrackerApp() {
                 </div>
 
                 {/* CURRENT BALANCE section */}
-                <div style={{ borderTop: "0.5px solid " + S.border, paddingTop: 8, marginBottom: 64 }}>
+                <div style={{ borderTop: "0.5px solid " + S.border, paddingTop: 8, marginBottom: 48 }}>
                   <div style={{ fontFamily: work, fontSize: 11, textTransform: "uppercase", color: S.textSubtle, letterSpacing: 0.5, marginBottom: 12 }}>Current Balance</div>
                   <div style={{ display: "flex", gap: 4 }}>
-                    <div style={{ flex: 1, background: S.surface, borderRadius: 16, height: 80, padding: "0 16px", display: "flex", flexDirection: "column", justifyContent: "center", border: focusedField === "bal" ? "0.5px solid " + S.textSubtle : "0.5px solid transparent" }}>
+                    <div style={{ flex: 1, background: S.surface, borderRadius: 16, height: 76, padding: "0 16px", display: "flex", flexDirection: "column", justifyContent: "center", border: focusedField === "bal" ? "0.5px solid " + S.textSubtle : "0.5px solid transparent" }}>
                       <div style={{ fontFamily: work, fontSize: 11, color: S.textSubtle, marginBottom: 8 }}>Hours</div>
                       <input type="number" value={editBal}
                         onChange={function(e) { setEditBal(parseFloat(e.target.value) || 0); setSettingsDirty(true); }}
@@ -2074,7 +2164,7 @@ function PTOTrackerApp() {
                         onBlur={function() { setFocusedField(null); }}
                         style={{ border: "none", outline: "none", fontFamily: work, fontSize: 14, fontWeight: 500, width: "100%", background: "transparent", color: S.text }} />
                     </div>
-                    <div style={{ flex: 1, background: S.surface, borderRadius: 16, height: 80, padding: "0 16px", display: "flex", flexDirection: "column", justifyContent: "center", border: focusedField === "balDate" ? "0.5px solid " + S.textSubtle : "0.5px solid transparent" }}>
+                    <div style={{ flex: 1, background: S.surface, borderRadius: 16, height: 76, padding: "0 16px", display: "flex", flexDirection: "column", justifyContent: "center", border: focusedField === "balDate" ? "0.5px solid " + S.textSubtle : "0.5px solid transparent" }}>
                       <div style={{ fontFamily: work, fontSize: 11, color: S.textSubtle, marginBottom: 8 }}>As of Date</div>
                       <DateField value={editBalDate} isFocused={focusedField === "balDate"}
                         onChange={function(v) { setEditBalDate(v); setSettingsDirty(true); }}
@@ -2085,8 +2175,8 @@ function PTOTrackerApp() {
                 </div>
 
                 {/* CALENDAR VIEW section */}
-                <div style={{ borderTop: "0.5px solid " + S.border, paddingTop: 8, marginBottom: 64 }}>
-                  <div style={{ fontFamily: work, fontSize: 11, textTransform: "uppercase", color: S.textSubtle, letterSpacing: 0.5, marginBottom: 12 }}>Calendar View</div>
+                <div style={{ borderTop: "0.5px solid " + S.border, paddingTop: 8, marginBottom: 48 }}>
+                  <div style={{ fontFamily: work, fontSize: 11, textTransform: "uppercase", color: S.textSubtle, letterSpacing: 0.5, marginBottom: 12 }}>Display</div>
                   <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
                     <div
                       onClick={function() {
@@ -2099,7 +2189,7 @@ function PTOTrackerApp() {
                           setCalFading(false);
                         }, 150);
                       }}
-                      style={{ background: S.surface, borderRadius: 16, height: 80, padding: "0 16px", display: "flex", flexDirection: "column", justifyContent: "center", cursor: "pointer" }}>
+                      style={{ background: S.surface, borderRadius: 16, height: 76, padding: "0 16px", display: "flex", flexDirection: "column", justifyContent: "center", cursor: "pointer" }}>
                       <div style={{ fontFamily: work, fontSize: 11, color: S.textSubtle, marginBottom: 8 }}>Week starts on</div>
                       <div style={{ fontFamily: work, fontSize: 14 }}>
                         <span style={{ color: weekStart === "sunday" ? S.text : S.textSubtle, fontWeight: weekStart === "sunday" ? 500 : 400 }}>Sunday</span>
@@ -2109,12 +2199,30 @@ function PTOTrackerApp() {
                     </div>
                     <div
                       onClick={function() { var next = showHolidays === "all" ? "acn" : "all"; setShowHolidays(next); persistSettings({ showHolidays: next }); userChangedSettingsRef.current = true; }}
-                      style={{ background: S.surface, borderRadius: 16, height: 80, padding: "0 16px", display: "flex", flexDirection: "column", justifyContent: "center", cursor: "pointer" }}>
+                      style={{ background: S.surface, borderRadius: 16, height: 76, padding: "0 16px", display: "flex", flexDirection: "column", justifyContent: "center", cursor: "pointer" }}>
                       <div style={{ fontFamily: work, fontSize: 11, color: S.textSubtle, marginBottom: 8 }}>Show US Holidays</div>
                       <div style={{ fontFamily: work, fontSize: 14 }}>
                         <span style={{ color: showHolidays === "acn" ? S.text : S.textSubtle, fontWeight: showHolidays === "acn" ? 500 : 400 }}>ACN only</span>
                         <span style={{ color: S.textSubtle, margin: "0 4px", fontWeight: 400 }}>/</span>
                         <span style={{ color: showHolidays === "all" ? S.text : S.textSubtle, fontWeight: showHolidays === "all" ? 500 : 400 }}>All holidays</span>
+                      </div>
+                    </div>
+                    <div
+                      onClick={function() {
+                        var order = ["light", "dark", "system"];
+                        var next = order[(order.indexOf(theme) + 1) % order.length];
+                        setTheme(next);
+                        persistSettings({ theme: next });
+                        userChangedSettingsRef.current = true;
+                      }}
+                      style={{ background: S.surface, borderRadius: 16, height: 76, padding: "0 16px", display: "flex", flexDirection: "column", justifyContent: "center", cursor: "pointer" }}>
+                      <div style={{ fontFamily: work, fontSize: 11, color: S.textSubtle, marginBottom: 8 }}>Theme</div>
+                      <div style={{ fontFamily: work, fontSize: 14 }}>
+                        <span style={{ color: theme === "light" ? S.text : S.textSubtle, fontWeight: theme === "light" ? 500 : 400 }}>Light</span>
+                        <span style={{ color: S.textSubtle, margin: "0 4px", fontWeight: 400 }}>/</span>
+                        <span style={{ color: theme === "dark" ? S.text : S.textSubtle, fontWeight: theme === "dark" ? 500 : 400 }}>Dark</span>
+                        <span style={{ color: S.textSubtle, margin: "0 4px", fontWeight: 400 }}>/</span>
+                        <span style={{ color: theme === "system" ? S.text : S.textSubtle, fontWeight: theme === "system" ? 500 : 400 }}>System</span>
                       </div>
                     </div>
                   </div>
@@ -2193,14 +2301,14 @@ function PTOTrackerApp() {
                           }}
                           style={{
                             background: isApproved ? S.pto : S.surface,
-                            borderRadius: 16, height: 80, padding: "0 16px",
+                            borderRadius: 16, height: 76, padding: "0 16px",
                             display: "flex", alignItems: "center", justifyContent: "space-between",
                             cursor: isApproved ? "default" : "pointer",
                             border: isSelected ? "0.5px solid " + S.textSubtle : "0.5px solid transparent",
                           }}>
                           <div>
-                            <div style={{ fontFamily: work, fontSize: 14, color: S.text, marginBottom: 8 }}>{dateRange}</div>
-                            <div style={{ fontFamily: work, fontSize: 12, color: S.textSubtle }}>{subtitle.join(", ")}</div>
+                            <div style={{ fontFamily: work, fontSize: 14, color: isApproved ? P.inkDeep : S.text, marginBottom: 8 }}>{dateRange}</div>
+                            <div style={{ fontFamily: work, fontSize: 12, color: isApproved ? P.inkDeep : S.textSubtle }}>{subtitle.join(", ")}</div>
                           </div>
                           <div style={{
                             width: 24, height: 24, borderRadius: 999, flexShrink: 0,
@@ -2222,7 +2330,7 @@ function PTOTrackerApp() {
                 )}
 
                 {writeSelectedGroups.length > 0 && writePlanGroups.length > 0 ? (
-                  <div style={{ marginTop: 64 }}>
+                  <div style={{ marginTop: 48 }}>
                     <div style={{ height: "0.5px", background: S.border, marginBottom: 8 }} />
                     <div style={{ fontFamily: work, fontSize: 11, textTransform: "uppercase", color: S.textSubtle, letterSpacing: 0.5, marginBottom: 16 }}>Text</div>
                     <div style={{ background: S.surface, borderRadius: 16, padding: "16px 20px", userSelect: "text" }}>
@@ -2252,7 +2360,7 @@ function PTOTrackerApp() {
           {(panelTab === "reco" && previewDates.length > 0) || (panelTab === "settings" && settingsDirty) || (panelTab === "write" && writeSelectedGroups.length > 0 && writePlanGroups.length > 0) ? (
             <div style={{
               position: "absolute", bottom: 0, left: 0, right: 0,
-              background: "linear-gradient(to bottom, rgba(248,248,248,0) 0%, rgba(248,248,248,0.85) 45%, " + S.surfaceAlt + " 65%)",
+              background: "linear-gradient(to bottom, rgba(" + S.surfaceAltRgb + ",0) 0%, rgba(" + S.surfaceAltRgb + ",0.85) 45%, " + S.surfaceAlt + " 65%)",
               padding: isMobile ? "60px 20px 20px 20px" : "80px 24px 24px 24px",
             }}>
               {panelTab === "write" ? (
@@ -2356,9 +2464,9 @@ function PTOTrackerApp() {
         }\
       " +
         "input[type='range'].reco-slider { -webkit-appearance: none; appearance: none; width: 100%; height: 1px; background: " + S.border + "; border-radius: 1px; outline: none; cursor: pointer; margin: 0; display: block; }" +
-        "input[type='range'].reco-slider::-webkit-slider-thumb { -webkit-appearance: none; width: 18px; height: 18px; border-radius: 50%; background: " + S.surface + "; border: 1px solid " + S.border + "; box-shadow: 0 1px 4px rgba(0,0,0,0.12); cursor: grab; }" +
+        "input[type='range'].reco-slider::-webkit-slider-thumb { -webkit-appearance: none; width: 18px; height: 18px; border-radius: 50%; background: " + S.surface + "; border: 1px solid " + S.border + "; box-shadow: " + S.shadowThumb + "; cursor: grab; }" +
         "input[type='range'].reco-slider::-webkit-slider-thumb:active { cursor: grabbing; }" +
-        "input[type='range'].reco-slider::-moz-range-thumb { width: 18px; height: 18px; border-radius: 50%; background: " + S.surface + "; border: 1px solid " + S.border + "; box-shadow: 0 1px 4px rgba(0,0,0,0.12); cursor: grab; border-box: border-box; }"
+        "input[type='range'].reco-slider::-moz-range-thumb { width: 18px; height: 18px; border-radius: 50%; background: " + S.surface + "; border: 1px solid " + S.border + "; box-shadow: " + S.shadowThumb + "; cursor: grab; border-box: border-box; }"
       }</style>
     </div>
   );

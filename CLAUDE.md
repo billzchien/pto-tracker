@@ -65,7 +65,7 @@ Leave days are stored in the `days` object (keyed by `YYYY-MM-DD` strings):
 | **PLAN** (`reco`) | Suggests break opportunities around holidays; preview + apply to calendar |
 | **DRAFT** (`write`) | Draft approval email from planned dates; copy to clipboard |
 | **BALANCE** (`overview`) | Current balance, accrual rates, used days |
-| **SETTINGS** (`settings`) | Name, management level, service start date, snapshot balance, calendar view (week start, US holidays scope) |
+| **SETTINGS** (`settings`) | Name, management level, service start date, snapshot balance, calendar view (week start, US holidays scope, theme) |
 
 ### Draft tab details
 - Future `PLAN`/`PLAN_CUL` dates are grouped into consecutive blocks (weekends and holidays between planned days don't break a group).
@@ -119,32 +119,43 @@ Unpaid leave days are excluded from all balance calculations.
 - `Work Sans` — all UI text, labels, buttons
 - `Sorts Mill Goudy` — user name in panel header (italic serif)
 
-**Colors:** Two-tier system — primitives (`P`) hold raw values, semantic tokens (`S`) reference them. Re-themes only need to swap `P`.
+**Colors:** Two-tier system — primitives (`P`) hold raw values; semantic tokens (`S`) reference them. `S` has light + dark variants (`LIGHT_S` / `DARK_S`); `applyTheme(mode)` mutates the live `S` object on every render of the top-level `PTOTracker` component, so module-global reads of `S.x` stay in sync with the active theme.
 
 ```js
 // Primitives
 P.white "#FFFFFF"   P.gray05 "#F8F8F8"   P.gray15 "#E3E3E3"
 P.gray25 "#CECECE"  P.gray45 "#757575"   P.black "#000000"
-P.lime "#ADFF55"    P.limeDeep "#70D900" P.yellow "#D9FF00"
-P.yellowHi "#FCF937" P.coral "#FF715B"
-P.maroon "#400000"
+P.ink "#141B13"     P.inkDeep "#080C08"
+P.lime "#ADFF55"    P.limeDeep "#70D900"
+P.lime05 "#E0FF66"  P.lime35 "#4C9928"   P.lime55 "#386828"   P.lime75 "#263E21"
+P.mint "#C8FFD6"
+P.yellow "#D9FF00"  P.yellowHi "#FCF937" P.coral "#FF715B"    P.maroon "#400000"
 
-// Semantic
-S.bg / S.surface          → P.white     // page bg, cards, popovers, inputs
-S.surfaceAlt              → P.gray05    // panel bg, weekend cells, past-holiday cells, past PTO/CUL cells
-S.border                  → P.gray15    // all dividers and strokes
-S.text                    → P.black     // primary text, today indicator
-S.textSubtle              → P.gray45    // labels, captions, focus outlines, chevrons, past-day numerals
-S.textFaint               → P.gray25    // PLAN slider min/max
-S.today / S.todayText     → P.black / P.white
-S.pto                     → P.lime      // planned PTO fill
-S.ptoOver / S.ptoOverText → P.coral / P.maroon  // over-balance fill + text
-S.cul                     → P.yellow    // cultural day
-S.holiday                 → P.yellowHi  // holiday cell (future)
-S.unpaid                  → P.limeDeep  // unpaid stroke + WRITE highlight ring
+// Semantic              LIGHT          DARK
+S.bg / S.surface       → P.white      / P.ink        // page bg, cards, popovers, inputs
+S.surfaceAlt           → P.gray05     / P.inkDeep    // panel bg, weekends, past days
+S.surfaceAltRgb        → "248,248,248"/"8,12,8"      // for the panel-fade gradient interpolation
+S.border               → P.gray15     / P.lime75     // dividers and strokes
+S.text                 → P.black      / P.lime       // primary text, today indicator
+S.textSubtle           → P.gray45     / P.lime55     // labels, captions, chevrons, past-day numerals
+S.textFaint            → P.gray25     / P.lime75     // PLAN slider min/max
+S.iconSubtle           → P.gray45     / P.lime35     // chevron strokes (year nav, lockscreen), lockscreen spinner stroke
+S.iconOnPto            → P.white      / P.inkDeep    // 4-dot panel toggle dots when panel is open (on lime bg)
+S.today / S.todayText  → P.black/P.white   / P.mint/P.inkDeep
+S.pto                  → P.lime       / P.lime       // planned PTO fill (same in both)
+S.ptoOver / Text       → P.coral/P.maroon  (same in both)
+S.cul                  → P.yellow     / P.lime05     // cultural day
+S.holiday              → P.yellowHi   / P.lime75     // holiday cell (future)
+S.unpaid               → P.limeDeep   / P.lime35     // unpaid stroke + DRAFT highlight ring
+S.shadowHeader         → "0 1px 12px rgba(0,0,0,0.08)" / "0 2px 16px rgba(0,0,0,0.4)"  // sticky header scroll shadow
+S.shadowThumb          → "0 1px 4px rgba(0,0,0,0.12)"  / "0 2px 6px rgba(0,0,0,0.4)"   // PLAN slider thumb shadow
 ```
 
-Known still-hardcoded values: shadow `rgba(0,0,0,0.08)`, spinner track `rgba(0,0,0,0.15)`, slider thumb shadow `rgba(0,0,0,0.12)`, panel-fade gradient `rgba(248,248,248,...)` (must stay in sync with `S.surfaceAlt` if re-themed).
+The Theme setting (Light / Dark / System) lives under Settings → Calendar View. Default is `system`; `system` follows `prefers-color-scheme` via a `matchMedia` subscription.
+
+Known still-hardcoded values (mostly shadows/depth on top of any surface, themed-agnostic): spinner track `rgba(0,0,0,0.15)`. The panel-fade gradient uses `S.surfaceAltRgb` and tracks the active theme.
+
+`S.shadowHeader` and `S.shadowThumb` are theme-aware shadow tokens (light: `rgba(0,0,0,0.08/0.12)`, dark: `rgba(0,0,0,0.4)`). Use these for any new shadows that need to be visible in dark mode.
 
 **Layout:**
 - Sticky header: balance stats + year nav + panel toggle + divider
