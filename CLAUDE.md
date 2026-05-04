@@ -125,7 +125,7 @@ Unpaid leave days are excluded from all balance calculations.
 // Primitives
 P.white "#FFFFFF"   P.gray05 "#F8F8F8"   P.gray15 "#E3E3E3"
 P.gray25 "#CECECE"  P.gray45 "#757575"   P.black "#000000"
-P.ink "#141B13"     P.inkDeep "#080C08"
+P.ink "#141B13"     P.inkDeep "#0F170F"
 P.lime "#ADFF55"    P.limeDeep "#70D900"
 P.lime05 "#E0FF66"  P.lime35 "#4C9928"   P.lime55 "#386828"   P.lime75 "#263E21"
 P.mint "#C8FFD6"
@@ -134,7 +134,7 @@ P.yellow "#D9FF00"  P.yellowHi "#FCF937" P.coral "#FF715B"    P.maroon "#400000"
 // Semantic              LIGHT          DARK
 S.bg / S.surface       → P.white      / P.ink        // page bg, cards, popovers, inputs
 S.surfaceAlt           → P.gray05     / P.inkDeep    // panel bg, weekends, past days
-S.surfaceAltRgb        → "248,248,248"/"8,12,8"      // for the panel-fade gradient interpolation
+S.surfaceAltRgb        → "248,248,248"/"15,23,15"      // for the panel-fade gradient interpolation
 S.border               → P.gray15     / P.lime75     // dividers and strokes
 S.text                 → P.black      / P.lime       // primary text, today indicator
 S.textSubtle           → P.gray45     / P.lime55     // labels, captions, chevrons, past-day numerals

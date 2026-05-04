@@ -38,10 +38,14 @@ const OTHER_HOLIDAYS = {
 };
 
 const FY_END = new Date(2026, 7, 31);
-const ACCRUAL_RATE_PRE5 = 7.0;
-const ACCRUAL_RATE_POST5 = 7.67;
-const ACCRUAL_RATE_POST10 = 8.33;
-const MILESTONE_DATE = new Date(2026, 7, 2);
+function getClRates(cl) {
+  var n = parseInt(cl) || 8;
+  if (n <= 4)  return { pre5: 9.00, post5: 9.00, post10: 9.00 }; // Accenture Leadership
+  if (n <= 7)  return { pre5: 8.33, post5: 8.33, post10: 9.00 }; // CL 5-7
+  if (n <= 9)  return { pre5: 7.00, post5: 7.67, post10: 8.33 }; // CL 8-9
+  if (n <= 11) return { pre5: 6.67, post5: 7.00, post10: 7.67 }; // CL 10-11
+  return       { pre5: 5.67, post5: 6.33, post10: 7.00 };        // CL 12-13
+}
 const HOURS_PER_DAY = 8;
 const CUL_DAYS_TOTAL = 2;
 
@@ -92,7 +96,7 @@ var P = {
   black:    "#000000",
 
   ink:      "#141B13",
-  inkDeep:  "#080C08",
+  inkDeep:  "#0F170F",
 
   lime:     "#ADFF55",
   limeDeep: "#70D900",
@@ -142,7 +146,7 @@ var DARK_S = {
   bg:            P.ink,
   surface:       P.ink,
   surfaceAlt:    P.inkDeep,
-  surfaceAltRgb: "8,12,8",
+  surfaceAltRgb: "15,23,15",
   border:        P.lime75,
 
   text:          P.lime,
@@ -206,16 +210,17 @@ function DateField({ value, onChange, onFocus, onBlur, isFocused }) {
   return (
     <div ref={containerRef} onFocus={handleContainerFocus} onBlur={handleContainerBlur}
       style={{ display: "flex", alignItems: "center", gap: 2 }}>
-      <input ref={mmRef} type="text" value={mm} maxLength={2} placeholder="MM"
+      <style>{"input.datefield-seg::placeholder { color: " + S.textSubtle + "; opacity: 1; }"}</style>
+      <input ref={mmRef} type="text" value={mm} maxLength={2} placeholder="MM" className="datefield-seg"
         onChange={function(e) { var v = e.target.value.replace(/\D/g,"").slice(0,2); setMm(v); tryEmit(yyyy,v,dd); if (v.length===2) ddRef.current && ddRef.current.focus(); }}
         style={Object.assign({}, seg, { width: 22 })} />
       <span style={sep}>/</span>
-      <input ref={ddRef} type="text" value={dd} maxLength={2} placeholder="DD"
+      <input ref={ddRef} type="text" value={dd} maxLength={2} placeholder="DD" className="datefield-seg"
         onChange={function(e) { var v = e.target.value.replace(/\D/g,"").slice(0,2); setDd(v); tryEmit(yyyy,mm,v); if (v.length===2) yyyyRef.current && yyyyRef.current.focus(); }}
         onKeyDown={function(e) { if (e.key==="Backspace" && dd==="") mmRef.current && mmRef.current.focus(); }}
         style={Object.assign({}, seg, { width: 22 })} />
       <span style={sep}>/</span>
-      <input ref={yyyyRef} type="text" value={yyyy} maxLength={4} placeholder="YYYY"
+      <input ref={yyyyRef} type="text" value={yyyy} maxLength={4} placeholder="YYYY" className="datefield-seg"
         onChange={function(e) { var v = e.target.value.replace(/\D/g,"").slice(0,4); setYyyy(v); tryEmit(v,mm,dd); }}
         onKeyDown={function(e) { if (e.key==="Backspace" && yyyy==="") ddRef.current && ddRef.current.focus(); }}
         style={Object.assign({}, seg, { width: 36 })} />
@@ -670,6 +675,8 @@ function PTOTrackerApp({ theme, setTheme }) {
   var [editBalDate, setEditBalDate] = useState("2026-04-01");
   var [startStr, setStartStr] = useState("2021-08-02");
   var [editStart, setEditStart] = useState("2021-08-02");
+  var [mlDateStr, setMlDateStr] = useState("");
+  var [editMLDate, setEditMLDate] = useState("");
   var [settingsDirty, setSettingsDirty] = useState(false);
   var [focusedField, setFocusedField] = useState(null);
   var [justToggled, setJustToggled] = useState({});
@@ -706,7 +713,7 @@ function PTOTrackerApp({ theme, setTheme }) {
     var data = {
       bal: bal, balDate: balDate, userName: userName, editCL: editCL,
       approvedGroups: approvedGroups, lockedDates: lockedDates, startStr: startStr,
-      weekStart: weekStart, showHolidays: showHolidays, theme: theme
+      mlDateStr: mlDateStr, weekStart: weekStart, showHolidays: showHolidays, theme: theme
     };
     if (overrides) Object.assign(data, overrides);
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); } catch(e) {}
@@ -806,6 +813,7 @@ function PTOTrackerApp({ theme, setTheme }) {
           if (p2.approvedGroups) setApprovedGroups(p2.approvedGroups);
           if (p2.lockedDates) setLockedDates(p2.lockedDates);
           if (p2.startStr) setStartStr(p2.startStr);
+          if (p2.mlDateStr) setMlDateStr(p2.mlDateStr);
           if (p2.weekStart) setWeekStart(p2.weekStart);
           if (p2.showHolidays) setShowHolidays(p2.showHolidays);
           if (p2.theme === "light" || p2.theme === "dark" || p2.theme === "system") setTheme(p2.theme);
@@ -837,7 +845,7 @@ function PTOTrackerApp({ theme, setTheme }) {
 
   useEffect(function() {
     if (!loaded) return;
-    var data = { bal: bal, balDate: balDate, userName: userName, editCL: editCL, approvedGroups: approvedGroups, lockedDates: lockedDates, startStr: startStr, weekStart: weekStart, showHolidays: showHolidays, theme: theme };
+    var data = { bal: bal, balDate: balDate, userName: userName, editCL: editCL, approvedGroups: approvedGroups, lockedDates: lockedDates, startStr: startStr, mlDateStr: mlDateStr, weekStart: weekStart, showHolidays: showHolidays, theme: theme };
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
       localStorage.setItem("bill-pto-userName", userName);
@@ -850,7 +858,7 @@ function PTOTrackerApp({ theme, setTheme }) {
       userChangedSettingsRef.current = false;
       supabase.from('pto_settings').upsert({ id: 1, data: data }).then(function() {});
     }
-  }, [bal, balDate, loaded, userName, editCL, approvedGroups, lockedDates, startStr, weekStart, showHolidays, theme]);
+  }, [bal, balDate, loaded, userName, editCL, approvedGroups, lockedDates, startStr, mlDateStr, weekStart, showHolidays, theme]);
 
   // Sync edit fields when settings tab opens
   useEffect(function() {
@@ -859,6 +867,7 @@ function PTOTrackerApp({ theme, setTheme }) {
       setEditBal(bal);
       setEditBalDate(balDate);
       setEditStart(startStr);
+      setEditMLDate(mlDateStr);
       setSettingsDirty(false);
     }
   }, [panelTab, userName, bal, balDate, startStr]);
@@ -915,6 +924,13 @@ function PTOTrackerApp({ theme, setTheme }) {
     var today = new Date(); today.setHours(0,0,0,0);
     var milestoneD = new Date(startStr); milestoneD.setFullYear(milestoneD.getFullYear() + 5);
     var milestone10D = new Date(startStr); milestone10D.setFullYear(milestone10D.getFullYear() + 10);
+    var clRates = getClRates(editCL);
+    var prevClRates = getClRates(parseInt(editCL) + 1);
+    var mlDate = mlDateStr ? (function() { var d = new Date(mlDateStr); d.setHours(0,0,0,0); return d; })() : null;
+    function rateForPP(pp) {
+      var rates = (mlDate && pp < mlDate) ? prevClRates : clRates;
+      return pp >= milestone10D ? rates.post10 : pp >= milestoneD ? rates.post5 : rates.pre5;
+    }
     var entries = Object.entries(days);
     var fyStart = new Date(viewYear - 1, 8, 1);
     var fyEnd = new Date(viewYear, 7, 31);
@@ -937,7 +953,7 @@ function PTOTrackerApp({ theme, setTheme }) {
     var accToToday = 0;
     PAY_PERIOD_ENDS.forEach(function(pp) {
       if (pp > asOf && pp <= today)
-        accToToday += pp >= milestone10D ? ACCRUAL_RATE_POST10 : pp >= milestoneD ? ACCRUAL_RATE_POST5 : ACCRUAL_RATE_PRE5;
+        accToToday += rateForPP(pp);
     });
     var takenSinceSnapshot = 0;
     entries.forEach(function(entry) {
@@ -953,7 +969,7 @@ function PTOTrackerApp({ theme, setTheme }) {
     var futAcc = 0;
     PAY_PERIOD_ENDS.forEach(function(pp) {
       if (pp > today && pp <= fyEnd)
-        futAcc += pp >= milestone10D ? ACCRUAL_RATE_POST10 : pp >= milestoneD ? ACCRUAL_RATE_POST5 : ACCRUAL_RATE_PRE5;
+        futAcc += rateForPP(pp);
     });
 
     // Planned PTO remaining after today (in FY)
@@ -978,7 +994,7 @@ function PTOTrackerApp({ theme, setTheme }) {
       var planD = new Date(pd);
       var acc = 0;
       PAY_PERIOD_ENDS.forEach(function(pp) {
-        if (pp > today && pp <= planD) acc += pp >= milestone10D ? ACCRUAL_RATE_POST10 : pp >= milestoneD ? ACCRUAL_RATE_POST5 : ACCRUAL_RATE_PRE5;
+        if (pp > today && pp <= planD) acc += rateForPP(pp);
       });
       var usedBy = 0;
       futurePlans.forEach(function(e) { if (new Date(e[0]) <= planD) usedBy++; });
@@ -992,7 +1008,7 @@ function PTOTrackerApp({ theme, setTheme }) {
     var accToBalFYEnd = 0;
     PAY_PERIOD_ENDS.forEach(function(pp) {
       if (pp > today && pp <= balFYEnd)
-        accToBalFYEnd += pp >= milestone10D ? ACCRUAL_RATE_POST10 : pp >= milestoneD ? ACCRUAL_RATE_POST5 : ACCRUAL_RATE_PRE5;
+        accToBalFYEnd += rateForPP(pp);
     });
     var ptoBeforeBalFYEnd = 0;
     entries.forEach(function(entry) {
@@ -1018,7 +1034,7 @@ function PTOTrackerApp({ theme, setTheme }) {
         var eoySegEnd = nextEoyBound <= fyEnd ? nextEoyBound : fyEnd;
         PAY_PERIOD_ENDS.forEach(function(pp) {
           if (pp > curEoyBound && pp <= eoySegEnd)
-            runEoy += pp >= milestone10D ? ACCRUAL_RATE_POST10 : pp >= milestoneD ? ACCRUAL_RATE_POST5 : ACCRUAL_RATE_PRE5;
+            runEoy += rateForPP(pp);
         });
         entries.forEach(function(entry) {
           var k = entry[0], t = entry[1];
@@ -1036,7 +1052,7 @@ function PTOTrackerApp({ theme, setTheme }) {
     if (EOCY <= balFYEnd) {
       var directAcc = 0; var directPTO = 0;
       PAY_PERIOD_ENDS.forEach(function(pp) {
-        if (pp > today && pp <= EOCY) directAcc += pp >= milestone10D ? ACCRUAL_RATE_POST10 : pp >= milestoneD ? ACCRUAL_RATE_POST5 : ACCRUAL_RATE_PRE5;
+        if (pp > today && pp <= EOCY) directAcc += rateForPP(pp);
       });
       entries.forEach(function(entry) {
         var k = entry[0], t = entry[1];
@@ -1052,7 +1068,7 @@ function PTOTrackerApp({ theme, setTheme }) {
         var segEnd = nextFYEnd <= EOCY ? nextFYEnd : EOCY;
         PAY_PERIOD_ENDS.forEach(function(pp) {
           if (pp > curFYEnd && pp <= segEnd)
-            runBal += pp >= milestone10D ? ACCRUAL_RATE_POST10 : pp >= milestoneD ? ACCRUAL_RATE_POST5 : ACCRUAL_RATE_PRE5;
+            runBal += rateForPP(pp);
         });
         entries.forEach(function(entry) {
           var k = entry[0], t = entry[1];
@@ -1075,7 +1091,7 @@ function PTOTrackerApp({ theme, setTheme }) {
       eocyDays: eocyDays,
       feasibility: feasibility,
     };
-  }, [days, bal, balDate, viewYear, startStr]);
+  }, [days, bal, balDate, viewYear, startStr, editCL, mlDateStr]);
 
   var opps = useMemo(function() {
     var r = [];
@@ -1185,6 +1201,13 @@ function PTOTrackerApp({ theme, setTheme }) {
     var today0 = new Date(); today0.setHours(0,0,0,0);
     var milD = new Date(startStr); milD.setFullYear(milD.getFullYear() + 5);
     var mil10D = new Date(startStr); mil10D.setFullYear(mil10D.getFullYear() + 10);
+    var gClRates = getClRates(editCL);
+    var gPrevClRates = getClRates(parseInt(editCL) + 1);
+    var gMlDate = mlDateStr ? (function() { var d = new Date(mlDateStr); d.setHours(0,0,0,0); return d; })() : null;
+    function rateForPPG(pp) {
+      var rates = (gMlDate && pp < gMlDate) ? gPrevClRates : gClRates;
+      return pp >= mil10D ? rates.post10 : pp >= milD ? rates.post5 : rates.pre5;
+    }
     var currentBal = stats.balHrs;
 
     // Locked future PLAN dates the user has committed to — must stay feasible
@@ -1219,7 +1242,7 @@ function PTOTrackerApp({ theme, setTheme }) {
           var acc = 0;
           PAY_PERIOD_ENDS.forEach(function(pp) {
             if (pp > today0 && pp <= ldDate)
-              acc += pp >= mil10D ? ACCRUAL_RATE_POST10 : pp >= milD ? ACCRUAL_RATE_POST5 : ACCRUAL_RATE_PRE5;
+              acc += rateForPPG(pp);
           });
           var additional = newDates.filter(function(d) { return d <= ld; }).length;
           // Only blame this opp if it actually contributes dates before `ld`.
@@ -1267,7 +1290,7 @@ function PTOTrackerApp({ theme, setTheme }) {
       }));
     });
     return groups;
-  }, [opps, days, viewYear, stats, lockedDates, startStr]);
+  }, [opps, days, viewYear, stats, lockedDates, startStr, editCL, mlDateStr]);
 
   // Group future PLAN/PLAN_CUL dates into consecutive blocks (weekends/holidays don't break a group)
   var writePlanGroups = useMemo(function() {
@@ -1447,10 +1470,14 @@ function PTOTrackerApp({ theme, setTheme }) {
     if (!type && dateObj > asOfDate) {
       var milestoneD = new Date(startStr); milestoneD.setFullYear(milestoneD.getFullYear() + 5);
       var milestone10D = new Date(startStr); milestone10D.setFullYear(milestone10D.getFullYear() + 10);
+      var hClRates = getClRates(editCL);
+      var hPrevClRates = getClRates(parseInt(editCL) + 1);
+      var hMlDate = mlDateStr ? (function() { var d = new Date(mlDateStr); d.setHours(0,0,0,0); return d; })() : null;
       var hypAcc = 0;
       PAY_PERIOD_ENDS.forEach(function(pp) {
         if (pp > asOfDate && pp <= dateObj) {
-          hypAcc += pp >= milestone10D ? ACCRUAL_RATE_POST10 : pp >= milestoneD ? ACCRUAL_RATE_POST5 : ACCRUAL_RATE_PRE5;
+          var rates = (hMlDate && pp < hMlDate) ? hPrevClRates : hClRates;
+          hypAcc += pp >= milestone10D ? rates.post10 : pp >= milestoneD ? rates.post5 : rates.pre5;
         }
       });
       var hypUsed = 0;
@@ -1993,9 +2020,10 @@ function PTOTrackerApp({ theme, setTheme }) {
                     var now = new Date(); now.setHours(0,0,0,0);
                     var ms = new Date(startStr); ms.setFullYear(ms.getFullYear() + 5);
                     var past5 = now >= ms;
-                    var rateA = past5 ? ACCRUAL_RATE_POST5 : ACCRUAL_RATE_PRE5;
+                    var dispRates = getClRates(editCL);
+                    var rateA = past5 ? dispRates.post5 : dispRates.pre5;
                     var labelA = past5 ? "after 5yr" : "before 5yr";
-                    var rateB = past5 ? ACCRUAL_RATE_POST10 : ACCRUAL_RATE_POST5;
+                    var rateB = past5 ? dispRates.post10 : dispRates.post5;
                     var labelB = past5 ? "after 10yr" : "after 5yr";
                     return (
                       <div style={{ display: "flex", gap: 24 }}>
@@ -2143,17 +2171,26 @@ function PTOTrackerApp({ theme, setTheme }) {
                         style={{ border: "none", outline: "none", fontFamily: work, fontSize: 14, fontWeight: 500, width: "100%", background: "transparent", color: S.text }} />
                     </div>
                   </div>
-                  <div style={{ background: S.surface, borderRadius: 16, height: 76, padding: "0 16px", display: "flex", flexDirection: "column", justifyContent: "center", border: focusedField === "milestone" ? "0.5px solid " + S.textSubtle : "0.5px solid transparent" }}>
-                    <div style={{ fontFamily: work, fontSize: 11, color: S.textSubtle, marginBottom: 8 }}>Starting Date</div>
-                    <DateField value={editStart} isFocused={focusedField === "milestone"}
-                      onChange={function(v) { setEditStart(v); setSettingsDirty(true); }}
-                      onFocus={function() { setFocusedField("milestone"); }}
-                      onBlur={function() { setFocusedField(null); }} />
+                  <div style={{ display: "flex", gap: 4 }}>
+                    <div style={{ flex: 1, background: S.surface, borderRadius: 16, height: 76, padding: "0 16px", display: "flex", flexDirection: "column", justifyContent: "center", border: focusedField === "milestone" ? "0.5px solid " + S.textSubtle : "0.5px solid transparent" }}>
+                      <div style={{ fontFamily: work, fontSize: 11, color: S.textSubtle, marginBottom: 8 }}>Starting Date</div>
+                      <DateField value={editStart} isFocused={focusedField === "milestone"}
+                        onChange={function(v) { setEditStart(v); setSettingsDirty(true); }}
+                        onFocus={function() { setFocusedField("milestone"); }}
+                        onBlur={function() { setFocusedField(null); }} />
+                    </div>
+                    <div style={{ flex: 1, background: S.surface, borderRadius: 16, height: 76, padding: "0 16px", display: "flex", flexDirection: "column", justifyContent: "center", border: focusedField === "mlDate" ? "0.5px solid " + S.textSubtle : "0.5px solid transparent" }}>
+                      <div style={{ fontFamily: work, fontSize: 11, color: S.textSubtle, marginBottom: 8 }}>ML Effective Date</div>
+                      <DateField value={editMLDate} isFocused={focusedField === "mlDate"}
+                        onChange={function(v) { setEditMLDate(v); setSettingsDirty(true); }}
+                        onFocus={function() { setFocusedField("mlDate"); }}
+                        onBlur={function() { setFocusedField(null); }} />
+                    </div>
                   </div>
                 </div>
 
                 {/* CURRENT BALANCE section */}
-                <div style={{ borderTop: "0.5px solid " + S.border, paddingTop: 8, marginBottom: 48 }}>
+                <div style={{ marginBottom: 48 }}>
                   <div style={{ fontFamily: work, fontSize: 11, textTransform: "uppercase", color: S.textSubtle, letterSpacing: 0.5, marginBottom: 12 }}>Current Balance</div>
                   <div style={{ display: "flex", gap: 4 }}>
                     <div style={{ flex: 1, background: S.surface, borderRadius: 16, height: 76, padding: "0 16px", display: "flex", flexDirection: "column", justifyContent: "center", border: focusedField === "bal" ? "0.5px solid " + S.textSubtle : "0.5px solid transparent" }}>
@@ -2175,7 +2212,7 @@ function PTOTrackerApp({ theme, setTheme }) {
                 </div>
 
                 {/* CALENDAR VIEW section */}
-                <div style={{ borderTop: "0.5px solid " + S.border, paddingTop: 8, marginBottom: 48 }}>
+                <div style={{ marginBottom: 48 }}>
                   <div style={{ fontFamily: work, fontSize: 11, textTransform: "uppercase", color: S.textSubtle, letterSpacing: 0.5, marginBottom: 12 }}>Display</div>
                   <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
                     <div
@@ -2331,7 +2368,6 @@ function PTOTrackerApp({ theme, setTheme }) {
 
                 {writeSelectedGroups.length > 0 && writePlanGroups.length > 0 ? (
                   <div style={{ marginTop: 48 }}>
-                    <div style={{ height: "0.5px", background: S.border, marginBottom: 8 }} />
                     <div style={{ fontFamily: work, fontSize: 11, textTransform: "uppercase", color: S.textSubtle, letterSpacing: 0.5, marginBottom: 16 }}>Text</div>
                     <div style={{ background: S.surface, borderRadius: 16, padding: "16px 20px", userSelect: "text" }}>
                       {generateEmailText().split("\n").map(function(line, i) {
@@ -2417,8 +2453,9 @@ function PTOTrackerApp({ theme, setTheme }) {
                         setBal(editBal);
                         setBalDate(editBalDate);
                         setStartStr(editStart);
+                        setMlDateStr(editMLDate);
                         setSettingsDirty(false);
-                        persistSettings({ userName: editName, bal: editBal, balDate: editBalDate, startStr: editStart });
+                        persistSettings({ userName: editName, bal: editBal, balDate: editBalDate, startStr: editStart, mlDateStr: editMLDate });
                       }
                     }}
                     style={{
