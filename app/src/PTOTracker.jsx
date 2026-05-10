@@ -138,6 +138,8 @@ var LIGHT_S = {
   holiday:       P.yellowHi,
   unpaid:        P.limeDeep,
 
+  surfacePopup:  P.white,
+
   shadowHeader:  "0 1px 12px rgba(0,0,0,0.08)",
   shadowThumb:   "0 1px 4px rgba(0,0,0,0.12)",
 };
@@ -146,6 +148,7 @@ var DARK_S = {
   bg:            P.ink,
   surface:       P.ink,
   surfaceAlt:    P.inkDeep,
+  surfacePopup:  P.inkDeep,
   surfaceAltRgb: "15,23,15",
   border:        P.lime75,
 
@@ -1587,7 +1590,7 @@ function PTOTrackerApp({ theme, setTheme }) {
         {isAct ? (
           <div onClick={function(e) { e.stopPropagation(); }} style={{
             position: "absolute", top: "100%", left: "50%", transform: "translateX(-50%)",
-            marginTop: 4, background: S.surface,
+            marginTop: 4, background: S.surfacePopup,
             borderRadius: 12, padding: 8, zIndex: 100,
             boxShadow: "0 4px 16px rgba(0,0,0,0.08)",
             width: 160,
