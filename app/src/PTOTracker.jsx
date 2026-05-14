@@ -2030,30 +2030,62 @@ function PTOTrackerApp({ theme, setTheme }) {
                 {/* Balance Section — first: no top border */}
                 <div style={{ marginBottom: 48 }}>
                   <div style={{ ...T.label.base, color: S.textSubtle, marginBottom: 20 }}>{"Balance FY" + viewYear}</div>
-                  <div style={{ display: "flex", gap: 24 }}>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ ...T.num, color: stats.balHrs < 0 ? S.ptoOverText : S.text }}>
-                        {(stats.balHrs / HOURS_PER_DAY).toFixed(1)}
+                  {(function() {
+                    var carryHrs = Math.min(Math.max(0, stats.eoy), 200);
+                    var lostHrs = Math.max(0, stats.eoy - 200);
+                    return (
+                      <div style={{ display: "flex", flexDirection: "column", gap: 32 }}>
+                        <div style={{ display: "flex", gap: 24 }}>
+                          <div style={{ flex: 1 }}>
+                            <div style={{ ...T.num, color: stats.balHrs < 0 ? S.ptoOverText : S.text }}>
+                              {(stats.balHrs / HOURS_PER_DAY).toFixed(1)}
+                            </div>
+                            <div style={{ ...T.body.smAlt, color: stats.balHrs < 0 ? S.ptoOverText : S.text, lineHeight: 1.5 }}>
+                              {"days or " + stats.balHrs + " hrs"}
+                            </div>
+                            <div style={{ ...T.body.sm, color: S.textSubtle, lineHeight: 1.5 }}>
+                              as of today
+                            </div>
+                          </div>
+                          <div style={{ flex: 1 }}>
+                            <div style={{ ...T.num, color: stats.eoy < 0 ? S.ptoOverText : S.text }}>
+                              {stats.eoyDays.toFixed(1)}
+                            </div>
+                            <div style={{ ...T.body.smAlt, color: stats.eoy < 0 ? S.ptoOverText : S.text, lineHeight: 1.5 }}>
+                              {"days or " + stats.eoy.toFixed(1) + " hrs"}
+                            </div>
+                            <div style={{ ...T.body.sm, color: S.textSubtle, lineHeight: 1.5 }}>
+                              remain by Aug 31
+                            </div>
+                          </div>
+                        </div>
+                        <div style={{ display: "flex", gap: 24 }}>
+                          <div style={{ flex: 1 }}>
+                            <div style={{ ...T.num, color: S.text }}>
+                              {(carryHrs / HOURS_PER_DAY).toFixed(1)}
+                            </div>
+                            <div style={{ ...T.body.smAlt, color: S.text, lineHeight: 1.5 }}>
+                              {"days or " + carryHrs.toFixed(1) + " hrs"}
+                            </div>
+                            <div style={{ ...T.body.sm, color: S.textSubtle, lineHeight: 1.5 }}>
+                              will carry over
+                            </div>
+                          </div>
+                          <div style={{ flex: 1 }}>
+                            <div style={{ ...T.num, color: lostHrs > 0 ? S.ptoOver : S.text }}>
+                              {(lostHrs / HOURS_PER_DAY).toFixed(1)}
+                            </div>
+                            <div style={{ ...T.body.smAlt, color: lostHrs > 0 ? S.ptoOver : S.text, lineHeight: 1.5 }}>
+                              {"days or " + lostHrs.toFixed(1) + " hrs"}
+                            </div>
+                            <div style={{ ...T.body.sm, color: S.textSubtle, lineHeight: 1.5 }}>
+                              will NOT carry over
+                            </div>
+                          </div>
+                        </div>
                       </div>
-                      <div style={{ ...T.body.smAlt, color: stats.balHrs < 0 ? S.ptoOverText : S.text, lineHeight: 1.5 }}>
-                        {"days / " + stats.balHrs + " hrs"}
-                      </div>
-                      <div style={{ ...T.body.sm, color: S.textSubtle, lineHeight: 1.5 }}>
-                        {"as of today"}
-                      </div>
-                    </div>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ ...T.num, color: stats.eoy < 0 ? S.ptoOverText : S.text }}>
-                        {stats.eoyDays.toFixed(1)}
-                      </div>
-                      <div style={{ ...T.body.smAlt, color: stats.eoy < 0 ? S.ptoOverText : S.text, lineHeight: 1.5 }}>
-                        {"days / " + stats.eoy.toFixed(1) + " hrs"}
-                      </div>
-                      <div style={{ ...T.body.sm, color: S.textSubtle, lineHeight: 1.5 }}>
-                        by Aug 31
-                      </div>
-                    </div>
-                  </div>
+                    );
+                  })()}
                 </div>
 
                 {/* Accrual Rate Section */}
