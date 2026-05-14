@@ -11,14 +11,15 @@ cd app && npm run dev
 ## Stack & project structure
 
 - **Vite + React** (no TypeScript), running on port 5173
-- **localStorage** for persistence — key: `bill-pto-2026-v2`
+- **Supabase** for persistence (`pto_days` + `pto_settings` tables) — single hardcoded user, no auth
 - Preview config: `.claude/launch.json`
 
 ```
-/Users/billchien/Documents/PTO Tracker/
+/Users/billchien/Documents/Apps/PTO Tracker/
 ├── app/
 │   ├── src/
 │   │   ├── PTOTracker.jsx    ← PRIMARY working file (all UI + logic)
+│   │   ├── supabase.js       ← Supabase client init
 │   │   ├── App.jsx           ← Simple wrapper
 │   │   └── index.css         ← Minimal reset
 │   ├── package.json
@@ -30,7 +31,7 @@ cd app && npm run dev
 
 ## Data model
 
-Leave days are stored in the `days` object (keyed by `YYYY-MM-DD` strings):
+Leave days are stored in Supabase `pto_days` (keyed by `YYYY-MM-DD`) and settings in `pto_settings` (jsonb).
 
 | Type | Description |
 |------|-------------|
@@ -92,32 +93,68 @@ Leave days are stored in the `days` object (keyed by `YYYY-MM-DD` strings):
 ACCRUAL_RATE_PRE5   = 7.0    // hrs/pay period before 5yr milestone
 ACCRUAL_RATE_POST5  = 7.67   // hrs/pay period from 5yr to 10yr milestone
 ACCRUAL_RATE_POST10 = 8.33   // hrs/pay period after 10yr milestone
-MILESTONE_DATE      = Aug 2, 2026  // Bill's 5-year mark (start + 5y); 10yr is start + 10y
 HOURS_PER_DAY       = 8
-CARRYOVER_CAP       = 200    // hard-coded as Math.min(...,200) — max hrs carrying to next FY
+CARRYOVER_CAP       = 200    // max hrs carrying to next FY
 CUL_DAYS_TOTAL      = 2      // cultural days per calendar year
 FY boundary: Sep 1 – Aug 31
 ```
 
+Bill's service start date drives milestone dates dynamically (5yr = start + 5y, 10yr = start + 10y) — not hardcoded.
+
 ### Balance calculation
 
-`currentBal = snapshotBal + accruedSinceSnapshot − daysTakenSinceSnapshot × 8`
+`currentBal` is computed by walking FY by FY from the snapshot date to today, applying the 200-hr carryover cap at each Aug 31 boundary crossed:
 
-Unpaid leave days are excluded from all balance calculations.
+1. Start with `snapshotBal` at `balDate`
+2. For each Aug 31 between `balDate` and today: add accruals, subtract PTO taken, then `min(balance, 200)`
+3. Add remaining accruals and PTO from the last Aug 31 to today
+
+Unpaid leave excluded from all balance calculations.
 
 ### Smart logic
-- Dynamic PLAN colors: lime if projected balance covers it, coral if not feasible.
+- Dynamic PLAN colors: lime if projected balance covers it, coral if not feasible (per-date projected balance check). Coral days are still clickable.
 - Year-aware stats: switching years recalculates everything.
-- Service-year milestones: accrual rate bumps to 7.67 at 5 years (Aug 2, 2026 for Bill) and 8.33 at 10 years.
-- FY rollover: caps balance at 200 hrs when crossing Aug 31.
+- Service-year milestones: accrual rate bumps at 5yr and 10yr marks (computed from Bill's service start date).
+- FY rollover: caps balance at 200 hrs **only at Aug 31** — balance can exceed 200 hrs mid-year.
 - Feasibility checking per planned date based on projected accruals.
+- CUL popup option hidden when `culRemaining <= 0`.
+- **`totalAvailDays`**: header PTO stat = `currentBal + accruals(today→Dec31) − planned(today→Dec31)`, no carryover cap. Reacts to every planned day regardless of FY boundary. Resets naturally on Sep 1 when `currentBal` gets the Aug 31 cap applied.
+- **PTO planning gate**: when `totalAvailDays <= 0`, any attempt to plan a future PTO day (via popup or single-click) shows a toast "All PTO planned for the year" and does nothing. Prevents the header from going negative.
+- **Infeasible PLAN cell text**: always uses `P.maroon` (#400000) — dark red readable on coral in both light and dark themes.
+
+### Pay period generation
+`PAY_PERIOD_ENDS` is generated dynamically at module load covering 15 FYs forward. Never needs manual updates for future years.
+
+### Year navigation
+- `viewYear` initializes dynamically based on the current FY: `month >= 8 ? year + 1 : year`.
+- `minViewYear = Math.max(2026, currentYear - 5)` — computed per session.
+- Left arrow in year nav is disabled (faded, no cursor) at `minViewYear`; can't navigate before it.
 
 ## Design system
 
 **Fonts:**
 - `Space Mono` — numbers, stat values, year nav
+- `Space Grotesk` — panel stat numbers (`T.num`)
 - `Work Sans` — all UI text, labels, buttons
 - `Sorts Mill Goudy` — user name in panel header (italic serif)
+
+**Type scale (`T`):**
+```js
+T.stat                          // Space Mono, weight 400, lineHeight 1 — big header numbers (fontSize set per usage: 44 mobile, 54 desktop)
+T.display.lg                    // Sorts Mill Goudy italic, 50px — user name
+T.display.md                    // Sorts Mill Goudy italic, 22px
+T.num                           // Space Grotesk, 20px, weight 500 — panel stat numbers
+T.label.alt                     // Work Sans, 11px, weight 500, uppercase + letterSpacing — primary labels, buttons
+T.label.base                    // Work Sans, 11px, weight 400, uppercase + letterSpacing — secondary labels
+T.label.sm                      // Work Sans, 11px, weight 400 — small labels, no transform (settings field labels)
+T.body.sm                       // Work Sans, 12px, weight 400 — small body text
+T.body.smAlt                    // Work Sans, 12px, weight 500 — small body emphasis
+T.body.base                     // Work Sans, 14px, weight 400 — default body
+T.body.alt                      // Work Sans, 14px, weight 500 — body emphasis, inputs
+```
+`button = T.label.alt; input = T.body.alt`
+
+`T.label.base` and `T.label.alt` use a getter that reads `S.labelLetterSpacing` at call time, so letter-spacing tracks the active theme (`"0.08em"` light / `"0.1em"` dark).
 
 **Colors:** Two-tier system — primitives (`P`) hold raw values; semantic tokens (`S`) reference them. `S` has light + dark variants (`LIGHT_S` / `DARK_S`); `applyTheme(mode)` mutates the live `S` object on every render of the top-level `PTOTracker` component, so module-global reads of `S.x` stay in sync with the active theme.
 
@@ -132,30 +169,29 @@ P.mint "#C8FFD6"
 P.yellow "#D9FF00"  P.yellowHi "#FCF937" P.coral "#FF715B"    P.maroon "#400000"
 
 // Semantic              LIGHT          DARK
-S.bg / S.surface       → P.white      / P.ink        // page bg, cards, popovers, inputs
-S.surfaceAlt           → P.gray05     / P.inkDeep    // panel bg, weekends, past days
-S.surfaceAltRgb        → "248,248,248"/"15,23,15"      // for the panel-fade gradient interpolation
-S.border               → P.gray15     / P.lime75     // dividers and strokes
-S.text                 → P.black      / P.lime       // primary text, today indicator
-S.textSubtle           → P.gray45     / P.lime55     // labels, captions, chevrons, past-day numerals
-S.textFaint            → P.gray25     / P.lime75     // PLAN slider min/max
-S.iconSubtle           → P.gray45     / P.lime35     // chevron strokes (year nav, lockscreen), lockscreen spinner stroke
-S.iconOnPto            → P.white      / P.inkDeep    // 4-dot panel toggle dots when panel is open (on lime bg)
+S.bg / S.surface       → P.white      / P.ink
+S.surfaceAlt           → P.gray05     / P.inkDeep
+S.surfaceAltRgb        → "248,248,248"/"15,23,15"
+S.border               → P.gray15     / P.lime75
+S.text                 → P.black      / P.lime
+S.textSubtle           → P.gray45     / P.lime55
+S.textFaint            → P.gray25     / P.lime75
+S.iconSubtle           → P.gray45     / P.lime35
+S.iconOnPto            → P.white      / P.inkDeep
 S.today / S.todayText  → P.black/P.white   / P.mint/P.inkDeep
-S.pto                  → P.lime       / P.lime       // planned PTO fill (same in both)
-S.ptoOver / Text       → P.coral/P.maroon  (same in both)
-S.cul                  → P.yellow     / P.lime05     // cultural day
-S.holiday              → P.yellowHi   / P.lime75     // holiday cell (future)
-S.unpaid               → P.limeDeep   / P.lime35     // unpaid stroke + DRAFT highlight ring
-S.shadowHeader         → "0 1px 12px rgba(0,0,0,0.08)" / "0 2px 16px rgba(0,0,0,0.4)"  // sticky header scroll shadow
-S.shadowThumb          → "0 1px 4px rgba(0,0,0,0.12)"  / "0 2px 6px rgba(0,0,0,0.4)"   // PLAN slider thumb shadow
+S.pto                  → P.lime       / P.lime
+S.ptoOver / Text       → P.coral / P.maroon (light) / P.coral (dark)
+S.cul                  → P.yellow     / P.lime05
+S.holiday              → P.yellowHi   / P.lime75
+S.unpaid               → P.limeDeep   / P.lime35
+S.labelLetterSpacing   → "0.08em"     / "0.1em"
+S.shadowHeader         → "0 1px 12px rgba(0,0,0,0.08)" / "0 2px 16px rgba(0,0,0,0.4)"
+S.shadowThumb          → "0 1px 4px rgba(0,0,0,0.12)"  / "0 2px 6px rgba(0,0,0,0.4)"
 ```
 
+Note: `S.ptoOverText` is used in the balance panel for negative balance color. Infeasible PLAN calendar cells always use `P.maroon` directly (theme-independent, readable on coral in both modes).
+
 The Theme setting (Light / Dark / System) lives under Settings → Calendar View. Default is `system`; `system` follows `prefers-color-scheme` via a `matchMedia` subscription.
-
-Known still-hardcoded values (mostly shadows/depth on top of any surface, themed-agnostic): spinner track `rgba(0,0,0,0.15)`. The panel-fade gradient uses `S.surfaceAltRgb` and tracks the active theme.
-
-`S.shadowHeader` and `S.shadowThumb` are theme-aware shadow tokens (light: `rgba(0,0,0,0.08/0.12)`, dark: `rgba(0,0,0,0.4)`). Use these for any new shadows that need to be visible in dark mode.
 
 **Layout:**
 - Sticky header: balance stats + year nav + panel toggle + divider
@@ -167,24 +203,24 @@ Known still-hardcoded values (mostly shadows/depth on top of any surface, themed
 ## Wishlist
 
 **High priority**
-1. Backend storage (Supabase) — sync across devices
-2. White-label setup — coworkers configure their own CL, service years, balance
-3. Login/auth
+1. ~~Backend storage (Supabase) — sync across devices~~ ✓ Done
+2. ~~Dark mode~~ ✓ Done
+3. White-label / shared version — spun off as **Timeback** (separate project under `Documents/Apps/Timeback`)
 
 **Medium priority**
 4. China trip planner — lunar new year + mom's birthday optimization
 5. Multi-year view
 6. Export to CSV/Google Calendar
-7. Dark mode
 
 **Nice to have**
-8. Configurable holidays (non-US)
-9. PTO history view
-10. Notifications
-11. Slack integration
+7. Configurable holidays (non-US)
+8. PTO history view
+9. Notifications
+10. Slack integration
 
 ## Notes for Claude
 
+- Update this CLAUDE.md whenever an important logic or architecture decision is made.
 - Bill prefers brief direct answers, lead with the conclusion.
 - He's a designer — expects pixel-perfect implementation from Figma.
 - The code uses `var` and `function()` style (artifact parser legacy).
