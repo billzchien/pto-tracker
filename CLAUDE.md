@@ -119,6 +119,9 @@ Bill's service start date drives milestone dates dynamically (5yr = start + 5y, 
 
 Unpaid leave excluded from all balance calculations.
 
+### Past-day normalization
+On load, planned days whose date has passed are converted to their used types (`PLAN`→`PTO`, `PLAN_CUL`→`CUL`, `PLAN_UNPAID`→`UNPAID`) and synced back to Supabase; locks on past dates are dropped. Without this, past planned days rendered lime forever and were never deducted from the balance (the balance walk only counts `PTO`). A render guard also draws past `PLAN`/`PLAN_CUL` cells as used gray, covering sessions left open across midnight.
+
 ### Smart logic
 - Dynamic PLAN colors: lime if projected balance covers it, coral if not feasible (per-date projected balance check). Coral days are still clickable.
 - Year-aware stats: switching years recalculates everything.

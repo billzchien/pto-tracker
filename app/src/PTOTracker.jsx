@@ -968,9 +968,18 @@ function PTOTrackerApp({ theme, setTheme }) {
         // Use prefetched data if available (started during lock screen animation)
         var result = dataPromise ? await dataPromise : await prefetchData();
         dataPromise = null;
+        var todayN = new Date(); todayN.setHours(0,0,0,0);
         if (result.days) {
+          // Planned days whose date has passed become used days, otherwise
+          // they render as planned forever and never deduct from the balance.
+          var PAST_MAP = { PLAN: "PTO", PLAN_CUL: "CUL", PLAN_UNPAID: "UNPAID" };
+          var normalized = {};
+          Object.keys(result.days).forEach(function(k) {
+            var t = result.days[k];
+            normalized[k] = (PAST_MAP[t] && new Date(k + "T12:00:00") < todayN) ? PAST_MAP[t] : t;
+          });
           prevDaysRef.current = result.days;
-          setDays(result.days);
+          setDays(normalized);
         }
         if (result.settings) {
           var p2 = result.settings;
@@ -979,7 +988,14 @@ function PTOTrackerApp({ theme, setTheme }) {
           if (p2.userName) setUserName(p2.userName);
           if (p2.editCL) setEditCL(p2.editCL);
           if (p2.approvedGroups) setApprovedGroups(p2.approvedGroups);
-          if (p2.lockedDates) setLockedDates(p2.lockedDates);
+          if (p2.lockedDates) {
+            // Locks only apply to future planned days — drop past ones
+            var liveLocks = {};
+            Object.keys(p2.lockedDates).forEach(function(k) {
+              if (new Date(k + "T12:00:00") >= todayN) liveLocks[k] = true;
+            });
+            setLockedDates(liveLocks);
+          }
           if (p2.startStr) setStartStr(p2.startStr);
           if (p2.mlDateStr) setMlDateStr(p2.mlDateStr);
           if (p2.weekStart) setWeekStart(p2.weekStart);
@@ -1603,8 +1619,9 @@ function PTOTrackerApp({ theme, setTheme }) {
     if (isToday) {
       cellBg = S.today;
       cellColor = S.todayText;
-    } else if (type === "PTO" || type === "CUL") {
-      // Used days (past) — match past-weekend treatment
+    } else if (type === "PTO" || type === "CUL" || (isPast && (type === "PLAN" || type === "PLAN_CUL"))) {
+      // Used days (past) — match past-weekend treatment. Past PLAN/PLAN_CUL
+      // render as used too, covering sessions left open across midnight.
       cellBg = S.surfaceAlt;
       cellColor = S.text;
     } else if (type === "PLAN") {
