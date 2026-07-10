@@ -12,6 +12,7 @@ cd app && npm run dev
 
 - **Vite + React** (no TypeScript), running on port 5173
 - **Supabase** for persistence (`pto_days` + `pto_settings` tables) — single hardcoded user, no auth
+- **Supabase keepalive**: GitHub Actions cron (`.github/workflows/keepalive.yml`) PATCHes a `keepalive` table row daily. Read-only pings did NOT count as activity for Supabase's free-tier inactivity scanner — it must be a write. The Vercel cron (`app/api/keepalive.js`) is a legacy read-only ping, kept as backup. Same setup exists in Timeback.
 - Preview config: `.claude/launch.json`
 
 ```
