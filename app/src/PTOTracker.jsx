@@ -769,6 +769,7 @@ function PTOTrackerApp({ theme, setTheme }) {
   var [userName, setUserName] = useState("Bill");
   var [editName, setEditName] = useState("Bill");
   var [editCL, setEditCL] = useState("8");
+  var [editCLDraft, setEditCLDraft] = useState("8");
   var [editBal, setEditBal] = useState(-12);
   var [editBalDate, setEditBalDate] = useState("2026-04-01");
   var [startStr, setStartStr] = useState("2021-08-02");
@@ -820,7 +821,9 @@ function PTOTrackerApp({ theme, setTheme }) {
     };
     if (overrides) Object.assign(data, overrides);
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); } catch(e) {}
-    supabase.from('pto_settings').upsert({ id: 1, data: data }).then(function() {});
+    supabase.from('pto_settings').upsert({ id: 1, data: data }).then(function(res) {
+      if (res && res.error) notify("Couldn't save settings — check your connection");
+    });
   }
 
   useEffect(function() { daysRef.current = days; }, [days]);
@@ -1020,8 +1023,15 @@ function PTOTrackerApp({ theme, setTheme }) {
         if (prev[date] !== curr[date]) toUpsert.push({ date: date, type: curr[date] });
       });
       var toDelete = Object.keys(prev).filter(function(date) { return !(date in curr); });
-      if (toUpsert.length > 0) await supabase.from('pto_days').upsert(toUpsert);
-      if (toDelete.length > 0) await supabase.from('pto_days').delete().in('date', toDelete);
+      var upErr = null, delErr = null;
+      if (toUpsert.length > 0) upErr = (await supabase.from('pto_days').upsert(toUpsert)).error;
+      if (toDelete.length > 0) delErr = (await supabase.from('pto_days').delete().in('date', toDelete)).error;
+      if (upErr || delErr) {
+        // Leave prevDaysRef as-is so the failed diff is retried on the next change
+        console.error("pto_days sync failed:", upErr || delErr);
+        notify("Couldn't save — check your connection");
+        return;
+      }
       prevDaysRef.current = Object.assign({}, curr);
     }
     syncDays();
@@ -1040,7 +1050,9 @@ function PTOTrackerApp({ theme, setTheme }) {
     // setX without a paired persistSettings() call.
     if (userChangedSettingsRef.current) {
       userChangedSettingsRef.current = false;
-      supabase.from('pto_settings').upsert({ id: 1, data: data }).then(function() {});
+      supabase.from('pto_settings').upsert({ id: 1, data: data }).then(function(res) {
+        if (res && res.error) notify("Couldn't save settings — check your connection");
+      });
     }
   }, [bal, balDate, loaded, userName, editCL, approvedGroups, lockedDates, startStr, mlDateStr, weekStart, showHolidays, theme]);
 
@@ -1052,9 +1064,10 @@ function PTOTrackerApp({ theme, setTheme }) {
       setEditBalDate(balDate);
       setEditStart(startStr);
       setEditMLDate(mlDateStr);
+      setEditCLDraft(editCL);
       setSettingsDirty(false);
     }
-  }, [panelTab, userName, bal, balDate, startStr]);
+  }, [panelTab, userName, bal, balDate, startStr, editCL]);
 
   // Slide tab indicator to active tab
   useEffect(function() {
@@ -2448,8 +2461,8 @@ function PTOTrackerApp({ theme, setTheme }) {
                     </div>
                     <div style={{ flex: 1, background: S.surface, borderRadius: 16, height: 76, padding: "0 16px", display: "flex", flexDirection: "column", justifyContent: "center", border: focusedField === "cl" ? "0.5px solid " + S.textSubtle : "0.5px solid transparent" }}>
                       <div style={{ ...T.label.sm, color: S.textSubtle, marginBottom: 8 }}>Management Level</div>
-                      <input type="text" value={editCL}
-                        onChange={function(e) { setEditCL(e.target.value); setSettingsDirty(true); }}
+                      <input type="text" value={editCLDraft}
+                        onChange={function(e) { setEditCLDraft(e.target.value); setSettingsDirty(true); }}
                         onFocus={function() { setFocusedField("cl"); }}
                         onBlur={function() { setFocusedField(null); }}
                         style={{ border: "none", outline: "none", ...T.body.alt, width: "100%", background: "transparent", color: S.text }} />
@@ -2707,6 +2720,8 @@ function PTOTrackerApp({ theme, setTheme }) {
                         setEditBal(bal);
                         setEditBalDate(balDate);
                         setEditStart(startStr);
+                        setEditMLDate(mlDateStr);
+                        setEditCLDraft(editCL);
                         setSettingsDirty(false);
                       }
                     }}
@@ -2730,14 +2745,18 @@ function PTOTrackerApp({ theme, setTheme }) {
                         setPreviewDates([]); setPreviewCulDates([]); setPreviewExistingDates([]);
                         notify("Plan applied");
                       } else {
+                        // Pay periods are only generated from 2025 on — an older
+                        // snapshot date would silently miss accruals.
+                        if (editBalDate && editBalDate < "2025-01-01") { notify("Balance date must be 2025 or later"); return; }
                         userChangedSettingsRef.current = true;
                         setUserName(editName);
                         setBal(editBal);
                         setBalDate(editBalDate);
                         setStartStr(editStart);
                         setMlDateStr(editMLDate);
+                        setEditCL(editCLDraft);
                         setSettingsDirty(false);
-                        persistSettings({ userName: editName, bal: editBal, balDate: editBalDate, startStr: editStart, mlDateStr: editMLDate });
+                        persistSettings({ userName: editName, bal: editBal, balDate: editBalDate, startStr: editStart, mlDateStr: editMLDate, editCL: editCLDraft });
                       }
                     }}
                     style={{

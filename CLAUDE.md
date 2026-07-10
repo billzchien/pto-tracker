@@ -122,6 +122,12 @@ Unpaid leave excluded from all balance calculations.
 ### Past-day normalization
 On load, planned days whose date has passed are converted to their used types (`PLAN`→`PTO`, `PLAN_CUL`→`CUL`, `PLAN_UNPAID`→`UNPAID`) and synced back to Supabase; locks on past dates are dropped. Without this, past planned days rendered lime forever and were never deducted from the balance (the balance walk only counts `PTO`). A render guard also draws past `PLAN`/`PLAN_CUL` cells as used gray, covering sessions left open across midnight.
 
+### Data integrity guards (audited alongside Timeback, July 2026)
+- Settings' Management Level field is staged in `editCLDraft`; Cancel reverts it, Update commits to `editCL` and persists. (Timeback had the same live-state bug — CL changes leaked even on Cancel.)
+- Settings Update rejects a balance date before 2025-01-01 (`PAY_PERIOD_ENDS` generation starts at 2025 — an older snapshot would silently miss accruals).
+- Failed `pto_days`/`pto_settings` Supabase writes now toast "Couldn't save — check your connection" instead of failing silently; a failed day-sync keeps its diff pending so the next change retries.
+- Not applicable here (single-user, no onboarding): CUL snapshot double-counting and the upsert `onConflict` mismatch that hit Timeback — this app's `pto_days` PK is just `date`, so default upsert conflict resolution is already correct.
+
 ### Smart logic
 - Dynamic PLAN colors: lime if projected balance covers it, coral if not feasible (per-date projected balance check). Coral days are still clickable.
 - Year-aware stats: switching years recalculates everything.
