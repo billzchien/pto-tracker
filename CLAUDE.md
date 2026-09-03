@@ -143,7 +143,19 @@ On load, planned days whose date has passed are converted to their used types (`
 `PAY_PERIOD_ENDS` is generated dynamically at module load covering 15 FYs forward. Never needs manual updates for future years.
 
 ### Year navigation
-- `viewYear` initializes dynamically based on the current FY: `month >= 8 ? year + 1 : year`.
+- `viewYear` initializes to the **current calendar year**, clamped to `minViewYear`. The grid renders Jan–Dec of `viewYear`, so it must contain today — that's what gives the load-time auto-scroll its `#month-current` target. It previously initialized off the fiscal year (`month >= 8 ? year + 1 : year`), which meant that from Sep 1 through Dec 31 the app opened on next year with today nowhere on screen.
+
+### Balance panel: `viewYear` vs `viewFY`
+Two different years, diverging every Sep 1 – Dec 31:
+
+- **Heading** = `viewFY = viewYear + (today.getMonth() >= 8 ? 1 : 0)` — the FY you're *in* during that view.
+- **Figures** = the Aug 31 boundary inside `viewYear` (`fyEnd`), i.e. what you carried *into* FY`viewFY`. This does not move on Sep 1.
+
+So after Sep 1 2026 the 2026 view reads "BALANCE FY2027 · 6.2 remained by Aug 31 · 6.2 carried over" — the boundary just crossed, past tense — while the 2027 view reads "BALANCE FY2028" with the Aug 31 2027 projection in future tense.
+
+A completed FY reports history, not a projection: its accrual and planned-day ranges (today → `fyEnd`) are empty, so without this every figure collapsed to today's balance. `balanceAtDate()` recovers the balance at any past boundary by winding the snapshot across it in either direction — exact here because `currentBal` is linear from the snapshot with no cap discarding hours along the way. (Timeback's copy needs a recorded `fyHistory` for this, because its balance walk *does* apply the Aug 31 cap.)
+
+### Year navigation (cont.)
 - `minViewYear = Math.max(2026, currentYear - 5)` — computed per session.
 - Left arrow in year nav is disabled (faded, no cursor) at `minViewYear`; can't navigate before it.
 

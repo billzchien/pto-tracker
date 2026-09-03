@@ -736,8 +736,11 @@ function PTOTrackerApp({ theme, setTheme }) {
   var [days, setDays] = useState(DEFAULT_DATA);
   var now0 = new Date();
   var minViewYear = Math.max(2026, now0.getFullYear() - 5);
-  var initYear = now0.getMonth() >= 8 ? now0.getFullYear() + 1 : now0.getFullYear();
-  var [viewYear, setViewYear] = useState(Math.max(initYear, minViewYear));
+  var [viewYear, setViewYear] = useState(Math.max(now0.getFullYear(), minViewYear));
+  // The balance panel's heading names the FY you're *in* during that view, which
+  // from Sep 1 is a year ahead of the calendar grid. Its figures still describe
+  // the Aug 31 boundary inside `viewYear` — i.e. what you carried into FY`viewFY`.
+  var viewFY = viewYear + (now0.getMonth() >= 8 ? 1 : 0);
   var [loaded, setLoaded] = useState(false);
 
   // Fade in once data is loaded: double-RAF ensures the browser paints opacity:0 first
@@ -1218,9 +1221,32 @@ function PTOTrackerApp({ theme, setTheme }) {
     var balanceAtFYEnd = currentBal + accToBalFYEnd - ptoBeforeBalFYEnd * HOURS_PER_DAY;
     var carriedOver = Math.min(balanceAtFYEnd, 200);
 
+    // A completed FY reports history, not a projection: without this its "by
+    // Aug 31" figures collapse to today's balance, because the accrual and
+    // planned-day ranges (today -> fyEnd) are empty for a past fyEnd. currentBal
+    // is linear from the snapshot with no cap discarding hours along the way, so
+    // the balance at that boundary is recoverable exactly in either direction.
+    var fyIsPast = fyEnd < today;
+    function balanceAtDate(d) {
+      var v = bal;
+      var back = d < asOf;
+      var lo = back ? d : asOf, hi = back ? asOf : d, sign = back ? -1 : 1;
+      PAY_PERIOD_ENDS.forEach(function(pp) {
+        if (pp > lo && pp <= hi) v += sign * rateForPP(pp);
+      });
+      entries.forEach(function(entry) {
+        var k = entry[0], t = entry[1];
+        if (t === "PTO") { var dd = new Date(k); if (dd > lo && dd <= hi) v -= sign * HOURS_PER_DAY; }
+      });
+      return v;
+    }
+
     // eoy / avail: FY-walk from current FY end to fyEnd, capping at 200 at each Aug 31
     var eoy, avail;
-    if (fyEnd <= balFYEnd) {
+    if (fyIsPast) {
+      eoy = balanceAtDate(fyEnd);
+      avail = 0;
+    } else if (fyEnd <= balFYEnd) {
       eoy = currentBal + futAcc - ptoAfter * HOURS_PER_DAY;
       avail = Math.floor((currentBal + futAcc) / HOURS_PER_DAY) - ptoAfter;
     } else {
@@ -1297,7 +1323,7 @@ function PTOTrackerApp({ theme, setTheme }) {
       culRemaining: CUL_DAYS_TOTAL - culUsed - culPlanned,
       culByYear: culByYear,
       balHrs: currentBal, futAcc: futAcc, eoy: eoy,
-      eoyDays: eoy / HOURS_PER_DAY, avail: avail,
+      eoyDays: eoy / HOURS_PER_DAY, avail: avail, fyIsPast: fyIsPast,
       eocyDays: eocyDays, totalAvailDays: totalAvailDays,
       feasibility: feasibility,
     };
@@ -2251,10 +2277,15 @@ function PTOTrackerApp({ theme, setTheme }) {
               <div style={{ paddingTop: isMobile ? 28 : 40 }}>
                 {/* Balance Section — first: no top border */}
                 <div style={{ marginBottom: 48 }}>
-                  <div style={{ ...T.label.base, color: S.textSubtle, marginBottom: 20 }}>{"Balance FY" + viewYear}</div>
+                  <div style={{ ...T.label.base, color: S.textSubtle, marginBottom: 20 }}>{"Balance FY" + viewFY}</div>
                   {(function() {
                     var carryHrs = Math.min(Math.max(0, stats.eoy), 200);
                     var lostHrs = Math.max(0, stats.eoy - 200);
+                    // A completed FY is reported, not projected
+                    var past = stats.fyIsPast;
+                    var eoyLabel = past ? "remained by Aug 31" : "remain by Aug 31";
+                    var carryLabel = past ? "carried over" : "will carry over";
+                    var lostLabel = past ? "did NOT carry over" : "will NOT carry over";
                     return (
                       <div style={{ display: "flex", flexDirection: "column", gap: 32 }}>
                         <div style={{ display: "flex", gap: 24 }}>
@@ -2263,7 +2294,7 @@ function PTOTrackerApp({ theme, setTheme }) {
                               {(stats.balHrs / HOURS_PER_DAY).toFixed(1)}
                             </div>
                             <div style={{ ...T.body.smAlt, color: stats.balHrs < 0 ? S.ptoOverText : S.text, lineHeight: 1.5 }}>
-                              {"days or " + stats.balHrs + " hrs"}
+                              {"days or " + stats.balHrs.toFixed(1) + " hrs"}
                             </div>
                             <div style={{ ...T.body.sm, color: S.textSubtle, lineHeight: 1.5 }}>
                               as of today
@@ -2277,7 +2308,7 @@ function PTOTrackerApp({ theme, setTheme }) {
                               {"days or " + stats.eoy.toFixed(1) + " hrs"}
                             </div>
                             <div style={{ ...T.body.sm, color: S.textSubtle, lineHeight: 1.5 }}>
-                              remain by Aug 31
+                              {eoyLabel}
                             </div>
                           </div>
                         </div>
@@ -2290,7 +2321,7 @@ function PTOTrackerApp({ theme, setTheme }) {
                               {"days or " + carryHrs.toFixed(1) + " hrs"}
                             </div>
                             <div style={{ ...T.body.sm, color: S.textSubtle, lineHeight: 1.5 }}>
-                              will carry over
+                              {carryLabel}
                             </div>
                           </div>
                           <div style={{ flex: 1 }}>
@@ -2301,7 +2332,7 @@ function PTOTrackerApp({ theme, setTheme }) {
                               {"days or " + lostHrs.toFixed(1) + " hrs"}
                             </div>
                             <div style={{ ...T.body.sm, color: S.textSubtle, lineHeight: 1.5 }}>
-                              will NOT carry over
+                              {lostLabel}
                             </div>
                           </div>
                         </div>
