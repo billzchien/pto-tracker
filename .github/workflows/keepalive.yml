@@ -2,7 +2,8 @@ name: Supabase Keepalive
 
 on:
   schedule:
-    - cron: '0 0 * * *'
+    # Off-peak minute — the :00 slots are congested and runs get delayed/dropped.
+    - cron: '17 3 * * *'
   workflow_dispatch:
 
 permissions:
@@ -17,10 +18,29 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
       - name: Write keepalive timestamp
+        env:
+          KEY: sb_publishable_g6xudK0xCihfdQi5t-AbgA_XqqtexPN
+          URL: https://wzzvahevprmwigtiriyr.supabase.co/rest/v1/keepalive?id=eq.1
         run: |
-          curl -sf -X PATCH \
-            -H "apikey: sb_publishable_g6xudK0xCihfdQi5t-AbgA_XqqtexPN" \
-            -H "Authorization: Bearer sb_publishable_g6xudK0xCihfdQi5t-AbgA_XqqtexPN" \
+          # Retry transient failures (5xx, timeouts, connection resets) with backoff
+          # before giving up. --retry-all-errors covers HTTP errors, not just network ones.
+          status=$(curl -s -o body.txt -D headers.txt -w '%{http_code}' \
+            --retry 6 --retry-delay 15 --retry-all-errors --max-time 30 \
+            -X PATCH \
+            -H "apikey: $KEY" \
+            -H "Authorization: Bearer $KEY" \
             -H "Content-Type: application/json" \
+            -H "Prefer: count=exact" \
             -d "{\"pinged_at\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}" \
-            "https://wzzvahevprmwigtiriyr.supabase.co/rest/v1/keepalive?id=eq.1"
+            "$URL")
+          echo "HTTP $status"
+          if [ "$status" -lt 200 ] || [ "$status" -ge 300 ]; then
+            echo "::error::Supabase returned HTTP $status after retries"
+            cat body.txt; echo
+            exit 1
+          fi
+          rows=$(grep -i '^content-range:' headers.txt | sed 's/.*\///' | tr -d '[:space:]')
+          echo "Rows updated: ${rows:-unknown}"
+          if [ "$rows" = "0" ]; then
+            echo "::warning::PATCH matched 0 rows — the keepalive row is hidden by RLS or missing, so this is not a real write. Seed id=1 and add an anon UPDATE policy on public.keepalive."
+          fi
